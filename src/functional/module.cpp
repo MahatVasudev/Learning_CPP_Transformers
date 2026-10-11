@@ -1,10 +1,40 @@
-#include "functional/functional.hpp"
-#include "functional/ops.h"
+#include <algorithm>
 #include <cmath>
-#include <random>
+#include <cstdint>
+#include <functional/module.h>
+#include <functional/ops.h>
+#include <functional/tensor.h>
+#include <optional>
+#include <stdexcept>
+#include <utils/utils.h>
 #include <vector>
 
 namespace functional {
+
+std::vector<Tensor *>
+Module::concat_parameters(const std::vector<Module *> modules) {
+  std::vector<Tensor *> global_vec;
+  for (Module *mod : modules) {
+    assert(mod != nullptr);
+    const std::vector<Tensor *> p = mod->parameters();
+    global_vec.insert(global_vec.end(), p.begin(), p.end());
+  }
+
+  return global_vec;
+}
+
+std::vector<Tensor *>
+Module::concat_gradients(const std::vector<Module *> modules) {
+  std::vector<Tensor *> global_vec;
+  for (Module *mod : modules) {
+    assert(mod != nullptr);
+    const std::vector<Tensor *> g = mod->gradients();
+    global_vec.insert(global_vec.end(), g.begin(), g.end());
+  }
+
+  return global_vec;
+}
+
 void LayerNorm::forward(const Tensor &X, Tensor &Y) {
   assert(X.rank() >= 1);
   assert(X.shape().back() == normalized_shape_);
@@ -34,17 +64,15 @@ void LayerNorm::forward(const Tensor &X, Tensor &Y) {
   }
 }
 
-void LayerNorm::backward(const Tensor &X, const Tensor &Y, const Tensor &dY,
-                         Tensor &dX, bool accumulate) {
+void LayerNorm::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
+                         bool accumulate) {
 
   assert(X.rank() >= 1);
-  assert(X.shape() == Y.shape());
-  assert(Y.shape() == dY.shape());
   assert(X.shape() == dX.shape());
+  assert(X.shape() == dY.shape());
   assert(X.shape().back() == normalized_shape_);
-  assert(&X != &Y);
-  assert(&Y != &dY);
   assert(&X != &dX);
+  assert(&X != &dY);
   const std::size_t D = normalized_shape_;
   const std::size_t rows = X.numel() / D;
 
@@ -126,22 +154,11 @@ std::vector<Tensor *> LayerNorm::gradients() {
 
 Linear::Linear(std::size_t in_features, std::size_t out_features, bool bias,
                unsigned seed)
-    : in_(in_features), out_(out_features), bias_(bias), seed_(seed),
+    : in_(in_features), out_(out_features), bias_(bias),
       W_(Tensor({out_features, in_features})), B_(Tensor({out_features})),
       dW_(Tensor({out_features, in_features})), dB_(Tensor({out_features})) {
   assert(in_features > 0 && out_features > 0);
-
-  std::mt19937 rng(seed);
-
-  const float bound = std::sqrt(6.0f / static_cast<float>(in_ + out_));
-
-  std::uniform_real_distribution<float> dist(-bound, bound);
-
-  float *w = W_.data();
-
-  for (std::size_t i = 0; i < W_.numel(); ++i) {
-    w[i] = dist(rng);
-  }
+  utils::fill_random(W_, utils::Initialize::xavier_uniform(), seed);
 }
 
 void Linear::forward(const Tensor &X, Tensor &Y) const {
@@ -208,4 +225,71 @@ std::vector<Tensor *> Linear::gradients() {
   return {&dW_};
 }
 
+Embedding::Embedding(std::size_t vocab_size, std::size_t d_model, unsigned seed,
+                     std::optional<std::size_t> padding_idx)
+    : vocab_size_(vocab_size), d_model_(d_model), padding_idx_(padding_idx),
+      Emb_({vocab_size, d_model}), dEmb_({vocab_size, d_model}) {
+  assert(vocab_size > 0 && d_model > 0);
+  if (padding_idx_ && *padding_idx_ >= vocab_size_) {
+    throw std::out_of_range("Embedding: padding_idx is out of range");
+  }
+  utils::fill_random(Emb_, utils::Initialize::normal(0.0f, 1.0f), seed);
+
+  if (padding_idx_) {
+    float *row = Emb_.data() + *padding_idx_ * d_model_;
+    std::fill(row, row + d_model_, 0.0f);
+  }
+}
+
+std::size_t Embedding::checked_id_(std::int32_t id) const {
+  if (id < 0 || static_cast<std::size_t>(id) >= vocab_size_) {
+    throw std::out_of_range("Embedding id out of range");
+  }
+
+  return static_cast<std::size_t>(id);
+}
+
+void Embedding::forward(const std::int32_t *ids, std::size_t n,
+                        Tensor &Y) const {
+
+  assert(ids != nullptr);
+  assert(Y.rank() >= 1 && Y.shape().back() == d_model_);
+  assert(Y.numel() == n * d_model_);
+  assert(&Y != &Emb_);
+
+  const float *emb = Emb_.data();
+  float *y = Y.data();
+
+  for (std::size_t i = 0; i < n; ++i) {
+    const std::int32_t id = checked_id_(ids[i]);
+    const float *src = emb + id * d_model_;
+    float *dst = y + i * d_model_;
+    std::copy(src, src + d_model_, dst);
+  }
+}
+
+void Embedding::backward(const std::int32_t *ids, std::size_t n,
+                         const Tensor &dY) {
+  assert(ids != nullptr);
+  assert(dY.rank() >= 1 && dY.shape().back() == d_model_);
+  assert(dY.numel() == n * d_model_);
+
+  const float *dy = dY.data();
+  float *grad = dEmb_.data();
+
+  for (std::size_t i = 0; i < n; ++i) {
+    const std::size_t id = checked_id_(ids[i]);
+    if (id == padding_idx_)
+      continue;
+    const float *src = dy + i * d_model_;
+    float *dst = grad + id * d_model_;
+    for (std::size_t j = 0; j < d_model_; ++j) {
+      dst[j] += src[j];
+    }
+  }
+}
+
+std::vector<Tensor *> Embedding::parameters() { return {&Emb_}; }
+
+std::vector<Tensor *> Embedding::gradients() { return {&dEmb_}; }
 } // namespace functional

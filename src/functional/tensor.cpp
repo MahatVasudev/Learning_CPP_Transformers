@@ -1,6 +1,8 @@
 #include "functional/tensor.h"
 #include <algorithm>
 #include <cassert>
+#include <stdexcept>
+#include <utility>
 
 namespace functional {
 Tensor::Tensor(std::vector<std::size_t> shape)
@@ -66,6 +68,41 @@ Tensor &Tensor::operator=(Tensor &&other) noexcept {
   }
 
   return *this;
+}
+
+Tensor Tensor::from_values(std::vector<std::size_t> shape,
+                           const std::vector<float> &values) {
+  Tensor t(std::move(shape));
+
+  if (values.size() != t.numel())
+    throw std::invalid_argument("from_values: value_count != shape size");
+
+  std::copy(values.begin(), values.end(), t.data());
+
+  return t;
+}
+
+Tensor Tensor::from_values(std::vector<std::size_t> shape,
+                           std::initializer_list<float> values) {
+
+  Tensor t(std::move(shape));
+
+  if (values.size() != t.numel())
+    throw std::invalid_argument("from_values: value_count != shape size");
+
+  std::copy(values.begin(), values.end(), t.data());
+
+  return t;
+}
+
+Tensor Tensor::from_pointer(std::vector<std::size_t> shape, const float *src,
+                            const std::size_t count) {
+
+  Tensor t(std::move(shape));
+  assert(src != nullptr);
+  assert(count == t.numel());
+  std::copy(src, src + count, t.data());
+  return t;
 }
 
 void Tensor::fill(float value) { std::fill(data_, data_ + numel_, value); }
