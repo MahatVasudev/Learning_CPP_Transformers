@@ -3,6 +3,7 @@
 #define FUNCTIONAL_FUNCTIONAL_HPP
 
 #include "functional/activations.h"
+#include "functional/cross_entropy.h"
 #include "functional/gradcheck.h"
 #include "functional/module.h"
 #include "functional/ops.h"

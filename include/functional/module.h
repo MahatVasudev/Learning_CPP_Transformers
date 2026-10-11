@@ -5,6 +5,8 @@
 #include "functional/tensor.h"
 #include <cassert>
 #include <cstddef>
+#include <cstdint>
+#include <optional>
 #include <vector>
 namespace functional {
 
@@ -27,6 +29,10 @@ public:
 
 protected:
   bool training_;
+  static std::vector<Tensor *>
+  concat_parameters(const std::vector<Module *> modules);
+  static std::vector<Tensor *>
+  concat_gradients(const std::vector<Module *> modules);
 };
 
 class LayerNorm final : public Module {
@@ -43,7 +49,7 @@ public:
   }
 
   void forward(const Tensor &X, Tensor &Y);
-  void backward(const Tensor &X, const Tensor &Y, const Tensor &dY, Tensor &dX,
+  void backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                 bool accumulate = false);
 
   const Tensor &gamma() const { return gamma_; }
@@ -85,8 +91,27 @@ public:
 private:
   std::size_t in_, out_;
   bool bias_;
-  unsigned seed_;
   Tensor W_, B_, dW_, dB_;
+};
+
+class Embedding final : public Module {
+public:
+  Embedding(std::size_t vocab_size, std::size_t d_model, unsigned seed = 0,
+            std::optional<std::size_t> padding_idx = std::nullopt);
+  std::vector<Tensor *> parameters() override;
+  std::vector<Tensor *> gradients() override;
+
+  void forward(const std::int32_t *ids, std::size_t n, Tensor &Y) const;
+  void backward(const std::int32_t *ids, std::size_t n, const Tensor &dY);
+
+private:
+  std::size_t vocab_size_;
+  std::size_t d_model_;
+  std::optional<std::size_t> padding_idx_;
+  Tensor Emb_;
+  Tensor dEmb_;
+
+  std::size_t checked_id_(std::int32_t id) const;
 };
 
 } // namespace functional

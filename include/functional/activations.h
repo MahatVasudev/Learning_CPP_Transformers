@@ -19,7 +19,8 @@ class ReLU final : public Activation {
 public:
   void forward(const Tensor &X, Tensor &Y) const override;
 
-  void backward(const Tensor &X, const Tensor &Y, const Tensor &dY, Tensor &dX,
+  void backward(const Tensor &X, [[maybe_unused]] const Tensor &Y,
+                const Tensor &dY, Tensor &dX,
                 bool accumulate = false) const override;
 };
 

@@ -2,6 +2,7 @@
 
 #define TENSOR_FUNCTIONAL_H
 #include <cassert>
+#include <initializer_list>
 #include <vector>
 namespace functional {
 
@@ -33,6 +34,13 @@ public:
   template <typename... Idx> const float &operator()(Idx... idx) const {
     return data_[offset(idx...)];
   }
+
+  static Tensor from_values(std::vector<std::size_t> shape,
+                            const std::vector<float> &values);
+  static Tensor from_values(std::vector<std::size_t> shape,
+                            std::initializer_list<float> values);
+  static Tensor from_pointer(std::vector<std::size_t> shape, const float *src,
+                             const std::size_t count);
 
   void fill(float value);
 
