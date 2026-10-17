@@ -29,16 +29,18 @@ add_library(test_lib STATIC
   src/tests/test_utils_and_initialization.cpp
   src/tests/test_positional_encoding.cpp
   src/tests/test_feedforward.cpp
+  src/tests/test_module_contract.cpp
 )
+add_library(error_lib STATIC src/errors/errors.cpp)
 
 # dependencies, bottom to top (no cycles)
-target_link_libraries(utils_lib      PUBLIC tensor_lib)
-target_link_libraries(functional_lib PUBLIC tensor_lib utils_lib)
-target_link_libraries(model_lib      PUBLIC functional_lib)
-target_link_libraries(test_lib       PUBLIC model_lib functional_lib utils_lib tensor_lib)
+target_link_libraries(utils_lib      PUBLIC tensor_lib error_lib)
+target_link_libraries(functional_lib PUBLIC tensor_lib utils_lib error_lib)
+target_link_libraries(model_lib      PUBLIC functional_lib error_lib)
+target_link_libraries(test_lib       PUBLIC model_lib functional_lib utils_lib tensor_lib error_lib)
 
 # settings shared by every library
-foreach(lib tensor_lib utils_lib functional_lib model_lib test_lib)
+foreach(lib tensor_lib utils_lib functional_lib model_lib test_lib error_lib)
   target_include_directories(${lib} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_compile_options(${lib} PRIVATE -Wall -Wextra)
   if(ENABLE_SANITIZERS)

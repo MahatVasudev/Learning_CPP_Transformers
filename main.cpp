@@ -21,7 +21,8 @@ const Suite kSuites[] = {
     {"tensor", tests::run_tensor},
     {"utils", tests::run_utils},
     {"positional_encoding", tests::run_positional_encoding},
-    {"feed_forward", tests::run_feedforward}};
+    {"feed_forward", tests::run_feedforward},
+    {"lazy_gradient", tests::run_module_contract}};
 
 // Optional filter: `--test embedding` runs only suites whose name contains it.
 int run_tests(const char *filter) {
