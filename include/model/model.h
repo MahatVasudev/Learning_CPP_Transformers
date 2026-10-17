@@ -18,6 +18,8 @@ public:
 
   std::vector<functional::Tensor *> gradients() override;
 
+  void set_training(bool state) override;
+
 private:
   std::size_t d_model_;
   std::size_t d_ff_;
@@ -28,6 +30,8 @@ private:
   std::optional<functional::Tensor> h_pre_, h_act_, dh_pre_, dh_act_;
   std::vector<std::size_t> hidden_shape_(const functional::Tensor &X) const;
   void ensure_buffers_(const functional::Tensor &X);
+
+  void ensure_gradients_(const functional::Tensor &X);
 };
 } // namespace model
 #endif // !MODEL_MODEL_H

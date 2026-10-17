@@ -14,6 +14,7 @@ void run_tensor();
 void run_utils();
 void run_positional_encoding();
 void run_feedforward();
+void run_module_contract();
 } // namespace tests
 
 #endif // !TEST_TEST_BASIC_H

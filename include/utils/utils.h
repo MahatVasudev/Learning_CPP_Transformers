@@ -2,8 +2,8 @@
 
 #define UTILS_INIT_H
 
-#include <cstddef>
 #include <functional/tensor.h>
+#include <vector>
 
 namespace utils {
 
@@ -58,6 +58,8 @@ struct Initialize {
 
 void fill_random(functional::Tensor &t, const Initialize &init,
                  const unsigned seed);
+
+template <typename T> T iterative_product_vector(std::vector<T> &data);
 
 } // namespace utils
   //
