@@ -1,6 +1,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <errors/errors.h>
 #include <functional/positional_encoding.h>
 #include <functional/tensor.h>
 #include <stdexcept>
@@ -20,20 +21,29 @@ PositionalEncodingSinusoidal::PositionalEncodingSinusoidal(std::size_t max_len,
     : max_len_(max_len), d_model_(d_model),
       pos_enc_(Tensor({max_len, d_model})) {
   if (d_model_ % 2 != 0) {
-    throw std::invalid_argument("d_model must be even");
+    throw error::ShapeError("PositionalEncodingSinusoidal",
+                            "shape (max_len, d_model), d_model must be even",
+                            pos_enc_.shape());
   }
   build_table_();
 }
 
 void PositionalEncodingSinusoidal::add_to(Tensor &embedding) const {
   if (embedding.rank() < 2) {
-    throw std::invalid_argument("Rank of embedding must be >= 2");
+    throw error::ShapeError(
+        "PositionalEncodingSinusoidal::add_to",
+        "Rank of embedding must be greater than 2", embedding.shape(),
+        error::make_message("got embedding rank: ", embedding.rank()));
   }
   std::size_t rank = embedding.rank();
   std::size_t seq_len = embedding.shape()[rank - 2];
   if (seq_len > max_len_ || embedding.shape().back() != d_model_) {
-    throw std::invalid_argument(
-        "Last two dimension must match <=max_len, == d_model");
+    throw error::ShapeError(
+        "PositionalEncodingSinusoidal::add_to",
+        error::make_message("Expected the last two dimension to be less than ",
+                            max_len_, " (max_len)", "and equal to ", d_model_,
+                            " (d_model)"),
+        embedding.shape());
   }
 
   std::size_t rows = embedding.numel() / d_model_;

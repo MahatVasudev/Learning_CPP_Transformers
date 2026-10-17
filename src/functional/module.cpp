@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <errors/errors.h>
 #include <functional/module.h>
 #include <functional/ops.h>
 #include <functional/tensor.h>
@@ -12,7 +13,7 @@
 namespace functional {
 
 std::vector<Tensor *>
-Module::concat_parameters(const std::vector<Module *> modules) {
+Module::concat_parameters(const std::vector<Module *> &modules) {
   std::vector<Tensor *> global_vec;
   for (Module *mod : modules) {
     assert(mod != nullptr);
@@ -24,7 +25,7 @@ Module::concat_parameters(const std::vector<Module *> modules) {
 }
 
 std::vector<Tensor *>
-Module::concat_gradients(const std::vector<Module *> modules) {
+Module::concat_gradients(const std::vector<Module *> &modules) {
   std::vector<Tensor *> global_vec;
   for (Module *mod : modules) {
     assert(mod != nullptr);
@@ -35,7 +36,30 @@ Module::concat_gradients(const std::vector<Module *> modules) {
   return global_vec;
 }
 
-void LayerNorm::forward(const Tensor &X, Tensor &Y) {
+void Module::set_training_all(const std::vector<Module *> &modules, bool mode) {
+  for (Module *mod : modules) {
+    assert(mod != nullptr);
+    mod->set_training(mode);
+  }
+}
+
+void LayerNorm::set_training(bool state) {
+  Module::set_training(state);
+
+  if (!state) {
+    gamma_grad_.reset();
+    beta_grad_.reset();
+  }
+}
+
+void LayerNorm::ensure_gradients_() {
+  if (!gamma_grad_)
+    gamma_grad_.emplace(std::vector<std::size_t>{normalized_shape_});
+  if (!beta_grad_)
+    beta_grad_.emplace(std::vector<std::size_t>{normalized_shape_});
+}
+
+void LayerNorm::forward(const Tensor &X, Tensor &Y) const {
   assert(X.rank() >= 1);
   assert(X.shape().back() == normalized_shape_);
   assert(Y.shape() == X.shape());
@@ -66,13 +90,18 @@ void LayerNorm::forward(const Tensor &X, Tensor &Y) {
 
 void LayerNorm::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                          bool accumulate) {
-
+  if (!training_) {
+    throw error::StateError("LayerNorm::backward: cannot run backward() on "
+                            "eval(), run train() first");
+  }
   assert(X.rank() >= 1);
   assert(X.shape() == dX.shape());
   assert(X.shape() == dY.shape());
   assert(X.shape().back() == normalized_shape_);
   assert(&X != &dX);
-  assert(&X != &dY);
+  assert(&dX != &dY);
+
+  ensure_gradients_();
   const std::size_t D = normalized_shape_;
   const std::size_t rows = X.numel() / D;
 
@@ -100,8 +129,8 @@ void LayerNorm::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
       sum_dy += dnorm;
       sum_dy_norm += dnorm * normalized;
 
-      gamma_grad_.data()[j] += dy_row[j] * normalized;
-      beta_grad_.data()[j] += dy_row[j];
+      gamma_grad_->data()[j] += dy_row[j] * normalized;
+      beta_grad_->data()[j] += dy_row[j];
     }
 
     for (std::size_t j = 0; j < D; ++j) {
@@ -149,16 +178,32 @@ float LayerNorm::variance_calculate_(const float *x, const float mean,
 std::vector<Tensor *> LayerNorm::parameters() { return {&gamma_, &beta_}; }
 
 std::vector<Tensor *> LayerNorm::gradients() {
-  return {&gamma_grad_, &beta_grad_};
+
+  ensure_gradients_();
+  return {&*gamma_grad_, &*beta_grad_};
 }
 
 Linear::Linear(std::size_t in_features, std::size_t out_features, bool bias,
                unsigned seed)
     : in_(in_features), out_(out_features), bias_(bias),
-      W_(Tensor({out_features, in_features})), B_(Tensor({out_features})),
-      dW_(Tensor({out_features, in_features})), dB_(Tensor({out_features})) {
+      W_(Tensor({out_features, in_features})), B_(Tensor({out_features})) {
   assert(in_features > 0 && out_features > 0);
   utils::fill_random(W_, utils::Initialize::xavier_uniform(), seed);
+}
+
+void Linear::set_training(bool state) {
+  Module::set_training(state);
+  if (!state) {
+    dW_.reset();
+    dB_.reset();
+  }
+}
+
+void Linear::ensure_gradients_() {
+  if (!dW_)
+    dW_.emplace(std::vector<std::size_t>{out_, in_});
+  if (!dB_ && bias_)
+    dB_.emplace(std::vector<std::size_t>{out_});
 }
 
 void Linear::forward(const Tensor &X, Tensor &Y) const {
@@ -187,23 +232,28 @@ void Linear::forward(const Tensor &X, Tensor &Y) const {
 void Linear::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                       bool accumulate) {
 
+  if (!training_) {
+    throw error::StateError("Linear::backward: cannot run backward() on "
+                            "eval(), run train() first");
+  }
   assert(X.rank() >= 1 && X.shape().back() == in_);
   assert(dY.shape().back() == out_);
   assert(dX.shape() == X.shape());
   assert(dY.numel() / out_ == X.numel() / in_);
   assert(&dX != &X && &dX != &dY);
+  ensure_gradients_();
 
   const std::size_t rows = X.numel() / in_;
 
   gemm(dY.data(), W_.data(), dX.data(), rows, out_, in_, out_, in_, in_, false,
        false, accumulate);
 
-  gemm(dY.data(), X.data(), dW_.data(), out_, rows, in_, out_, in_, in_, true,
+  gemm(dY.data(), X.data(), dW_->data(), out_, rows, in_, out_, in_, in_, true,
        false, true);
 
   if (bias_) {
     const float *dy = dY.data();
-    float *db = dB_.data();
+    float *db = dB_->data();
     for (std::size_t r = 0; r < rows; ++r)
       for (std::size_t j = 0; j < out_; ++j)
         db[j] += dy[r * out_ + j];
@@ -218,20 +268,24 @@ std::vector<Tensor *> Linear::parameters() {
 }
 
 std::vector<Tensor *> Linear::gradients() {
+  ensure_gradients_();
   if (bias_) {
-    return {&dW_, &dB_};
+    return {&*dW_, &*dB_};
   }
 
-  return {&dW_};
+  return {&*dW_};
 }
 
 Embedding::Embedding(std::size_t vocab_size, std::size_t d_model, unsigned seed,
                      std::optional<std::size_t> padding_idx)
     : vocab_size_(vocab_size), d_model_(d_model), padding_idx_(padding_idx),
-      Emb_({vocab_size, d_model}), dEmb_({vocab_size, d_model}) {
+      Emb_({vocab_size, d_model}) {
   assert(vocab_size > 0 && d_model > 0);
   if (padding_idx_ && *padding_idx_ >= vocab_size_) {
-    throw std::out_of_range("Embedding: padding_idx is out of range");
+    throw error::IndexError(
+        "Embedding: padding_idx is out of bounds", *padding_idx_,
+        error::make_message("padding_idx cannot be greater than ", vocab_size_,
+                            " (vocab_size)"));
   }
   utils::fill_random(Emb_, utils::Initialize::normal(0.0f, 1.0f), seed);
 
@@ -242,11 +296,26 @@ Embedding::Embedding(std::size_t vocab_size, std::size_t d_model, unsigned seed,
 }
 
 std::size_t Embedding::checked_id_(std::int32_t id) const {
-  if (id < 0 || static_cast<std::size_t>(id) >= vocab_size_) {
-    throw std::out_of_range("Embedding id out of range");
+  std::size_t _id = static_cast<std::size_t>(id);
+  if (id < 0 || _id >= vocab_size_) {
+    throw error::IndexError(
+        "Embedding id is out of range", _id,
+        error::make_message("id cannot be less than 0 or greater than ",
+                            vocab_size_, " (vocab_size)"));
   }
 
-  return static_cast<std::size_t>(id);
+  return _id;
+}
+
+void Embedding::set_training(bool state) {
+  Module::set_training(state);
+
+  dEmb_.reset();
+}
+
+void Embedding::ensure_gradient() {
+  if (!dEmb_)
+    dEmb_.emplace({vocab_size_, d_model_});
 }
 
 void Embedding::forward(const std::int32_t *ids, std::size_t n,
@@ -270,12 +339,18 @@ void Embedding::forward(const std::int32_t *ids, std::size_t n,
 
 void Embedding::backward(const std::int32_t *ids, std::size_t n,
                          const Tensor &dY) {
+
+  if (!training_) {
+    throw error::StateError("Embedding::backward: cannot run backward() on "
+                            "eval(), run train() first");
+  }
   assert(ids != nullptr);
   assert(dY.rank() >= 1 && dY.shape().back() == d_model_);
   assert(dY.numel() == n * d_model_);
 
+  ensure_gradient();
   const float *dy = dY.data();
-  float *grad = dEmb_.data();
+  float *grad = dEmb_->data();
 
   for (std::size_t i = 0; i < n; ++i) {
     const std::size_t id = checked_id_(ids[i]);
@@ -291,5 +366,8 @@ void Embedding::backward(const std::int32_t *ids, std::size_t n,
 
 std::vector<Tensor *> Embedding::parameters() { return {&Emb_}; }
 
-std::vector<Tensor *> Embedding::gradients() { return {&dEmb_}; }
+std::vector<Tensor *> Embedding::gradients() {
+  ensure_gradient();
+  return {&*dEmb_};
+}
 } // namespace functional
