@@ -1,8 +1,10 @@
 #include <cassert>
 #include <cmath>
+#include <errors/errors.h>
 #include <functional/tensor.h>
 #include <random>
 #include <stdexcept>
+#include <type_traits>
 #include <utils/utils.h>
 
 namespace utils {
@@ -19,7 +21,11 @@ void fill_dist(functional::Tensor &t, Dist dist, std::mt19937 rng) {
 
 Fans get_fans(const functional::Tensor &t) {
   if (t.rank() < 2) {
-    throw std::invalid_argument("fan based init needs Tensor rank >= 2");
+    throw error::ShapeError(
+        "utils::get_fans",
+        error::make_message(
+            "fan based init needs Tensor rank >= 2, current rank: ", t.rank()),
+        t.shape());
   }
 
   std::size_t receptive = 1;
@@ -31,6 +37,8 @@ Fans get_fans(const functional::Tensor &t) {
   const std::size_t in = t.shape()[1];
 
   if (out == 0 || in == 0) {
+    throw error::ShapeError("utils::get_fans", "contains zero-size dimensions",
+                            t.shape());
     throw std::invalid_argument("fan based init: zero-size dimensions");
   }
 
@@ -85,6 +93,17 @@ void fill_random(functional::Tensor &t, const Initialize &init,
     break;
   }
   }
+}
+
+template <typename T> T iterative_product_vector(std::vector<T> &data) {
+  assert(std::is_arithmetic_v<T>);
+  T value = static_cast<T>(1);
+
+  for (T v : data) {
+    value *= v;
+  }
+
+  return value;
 }
 
 } // namespace utils
