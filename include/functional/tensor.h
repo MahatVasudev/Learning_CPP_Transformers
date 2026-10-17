@@ -17,24 +17,30 @@ public:
   Tensor(Tensor &&other) noexcept;            // Move
   Tensor &operator=(Tensor &&other) noexcept; // Move assignment
 
+  // GET Methods
   const std::vector<std::size_t> &shape() const { return shape_; }
   const std::vector<std::size_t> &strides() const { return strides_; }
-
   std::size_t rank() const { return shape_.size(); }
   std::size_t numel() const { return numel_; }
-
   float *data() { return data_; }
-
   const float *data() const { return data_; }
 
+  // Shaping Methods
+  void reshape(std::vector<std::size_t> shape);
+  void squeeze(int &dim);
+  void unsqueeze(int &dim);
+  Tensor squeeze_copy(int &dim) const;
+  Tensor unsqueeze_copy(int &dim) const;
+
+  // Indexing
   template <typename... Idx> float &operator()(Idx... idx) {
     return data_[offset(idx...)];
   }
-
   template <typename... Idx> const float &operator()(Idx... idx) const {
     return data_[offset(idx...)];
   }
 
+  // From Methods
   static Tensor from_values(std::vector<std::size_t> shape,
                             const std::vector<float> &values);
   static Tensor from_values(std::vector<std::size_t> shape,
@@ -42,6 +48,7 @@ public:
   static Tensor from_pointer(std::vector<std::size_t> shape, const float *src,
                              const std::size_t count);
 
+  // Misc.
   void fill(float value);
 
   Tensor clone() const;
@@ -59,10 +66,15 @@ private:
     return off;
   }
 
+  std::vector<std::size_t> compute_strides_(std::vector<std::size_t> &shape,
+                                            std::size_t &numel);
+
   std::vector<std::size_t> shape_;
   std::vector<std::size_t> strides_;
   std::size_t numel_;
   float *data_;
 };
+
+Tensor reshape(Tensor &t, std::vector<std::size_t> &shape);
 } // namespace functional
 #endif // !TENSOR_FUNCTIONAL_H
