@@ -37,18 +37,6 @@ ShapeError::build_message_(const std::string &operation,
                       additional_string);
 }
 
-IndexError::IndexError(std::string message, const std::size_t found_index,
-                       std::string additional_message)
-    : std::out_of_range(
-          build_message_(message, found_index, additional_message)) {}
-
-std::string IndexError::build_message_(const std::string &message,
-                                       const std::size_t &found_index,
-                                       const std::string &additional_message) {
-  return make_message("IndexError: ", message, ": found index ", found_index,
-                      '\n', additional_message);
-}
-
 StateError::StateError(const std::string &message)
     : std::logic_error("StateError: " + message) {}
 
