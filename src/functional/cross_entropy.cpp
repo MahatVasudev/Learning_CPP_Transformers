@@ -1,4 +1,5 @@
 #include "functional/cross_entropy.h"
+#include "functional/tensor.h"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -9,6 +10,7 @@ namespace functional {
 CrossEntropyResult cross_entropy(const Tensor &logits,
                                  const std::int32_t *targets,
                                  std::int32_t ignore_index) {
+  require_contiguous(logits, "cross_entropy", "logits");
   assert(logits.rank() >= 1);
   assert(targets != nullptr);
 
@@ -60,6 +62,8 @@ CrossEntropyResult cross_entropy(const Tensor &logits,
 void cross_entropy_backward(const Tensor &logits, const std::int32_t *targets,
                             Tensor &dlogits, const std::int32_t ignore_index,
                             bool accumulate) {
+  require_contiguous(logits, "cross_entropy_backward", "logits");
+  require_contiguous(dlogits, "cross_entropy_backward", "dlogits");
   assert(logits.rank() >= 1);
   assert(targets != nullptr);
   assert(dlogits.shape() == logits.shape());

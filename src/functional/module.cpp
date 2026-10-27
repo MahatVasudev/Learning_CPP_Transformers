@@ -6,7 +6,6 @@
 #include <functional/ops.h>
 #include <functional/tensor.h>
 #include <optional>
-#include <stdexcept>
 #include <utils/utils.h>
 #include <vector>
 
@@ -60,6 +59,8 @@ void LayerNorm::ensure_gradients_() {
 }
 
 void LayerNorm::forward(const Tensor &X, Tensor &Y) const {
+  require_contiguous(X, "LayerNorm::forward", "X");
+  require_contiguous(Y, "LayerNorm::forward", "Y");
   assert(X.rank() >= 1);
   assert(X.shape().back() == normalized_shape_);
   assert(Y.shape() == X.shape());
@@ -94,6 +95,9 @@ void LayerNorm::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
     throw error::StateError("LayerNorm::backward: cannot run backward() on "
                             "eval(), run train() first");
   }
+  require_contiguous(X, "LayerNorm::backward", "X");
+  require_contiguous(dY, "LayerNorm::backward", "dY");
+  require_contiguous(dX, "LayerNorm::backward", "dX");
   assert(X.rank() >= 1);
   assert(X.shape() == dX.shape());
   assert(X.shape() == dY.shape());
@@ -207,6 +211,8 @@ void Linear::ensure_gradients_() {
 }
 
 void Linear::forward(const Tensor &X, Tensor &Y) const {
+  require_contiguous(X, "Linear::forward", "X");
+  require_contiguous(Y, "Linear::forward", "Y");
   assert(X.rank() >= 1 && X.shape().back() == in_);
   assert(Y.rank() == X.rank() && Y.shape().back() == out_);
 
@@ -214,19 +220,12 @@ void Linear::forward(const Tensor &X, Tensor &Y) const {
     assert(X.shape()[d] == Y.shape()[d]);
   }
   assert(&X != &Y);
-
-  const std::size_t rows = X.numel() / in_;
-
-  float *y = Y.data();
-
-  for (std::size_t row = 0; row < rows; ++row) {
-    for (std::size_t col = 0; col < out_; ++col) {
-      y[row * out_ + col] = bias_ ? B_.data()[col] : 0.0f;
-    }
+  Y.fill(0.0f);
+  if (bias_) {
+    Y.add(B_);
   }
 
-  gemm(X.data(), W_.data(), y, rows, in_, out_, in_, in_, out_, false, true,
-       true);
+  matmul(X, W_, Y, false, true, true);
 }
 
 void Linear::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
@@ -236,6 +235,9 @@ void Linear::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
     throw error::StateError("Linear::backward: cannot run backward() on "
                             "eval(), run train() first");
   }
+  require_contiguous(X, "Linear::backward", "X");
+  require_contiguous(dY, "Linear::backward", "dY");
+  require_contiguous(dX, "Linear::backward", "dX");
   assert(X.rank() >= 1 && X.shape().back() == in_);
   assert(dY.shape().back() == out_);
   assert(dX.shape() == X.shape());
@@ -243,20 +245,25 @@ void Linear::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   assert(&dX != &X && &dX != &dY);
   ensure_gradients_();
 
+  matmul(dY, W_, dX, false, false, accumulate);
+  // gemm(dY.data(), W_.data(), dX.data(), rows, out_, in_, out_, 1, in_, 1,
+  // in_,
+  //      1, false, false, accumulate);
   const std::size_t rows = X.numel() / in_;
+  Tensor X2 = X.view({rows, in_});
+  Tensor dY2 = dY.view({rows, out_});
 
-  gemm(dY.data(), W_.data(), dX.data(), rows, out_, in_, out_, in_, in_, false,
-       false, accumulate);
-
-  gemm(dY.data(), X.data(), dW_->data(), out_, rows, in_, out_, in_, in_, true,
-       false, true);
+  matmul(dY2, X2, *dW_, true, false, true);
 
   if (bias_) {
-    const float *dy = dY.data();
-    float *db = dB_->data();
-    for (std::size_t r = 0; r < rows; ++r)
-      for (std::size_t j = 0; j < out_; ++j)
-        db[j] += dy[r * out_ + j];
+    // const float *dy = dY.data();
+    // float *db = dB_->data();
+    // for (std::size_t r = 0; r < rows; ++r)
+    //   for (std::size_t j = 0; j < out_; ++j)
+    //     db[j] += dy[r * out_ + j];
+    // std::cout << error::format_shape(dB_->shape())
+    //           << error::format_shape(dY.shape());
+    dB_->add(dY2.sum(0));
   }
 }
 
@@ -320,7 +327,7 @@ void Embedding::ensure_gradient() {
 
 void Embedding::forward(const std::int32_t *ids, std::size_t n,
                         Tensor &Y) const {
-
+  require_contiguous(Y, "Embedding::forward", "Y");
   assert(ids != nullptr);
   assert(Y.rank() >= 1 && Y.shape().back() == d_model_);
   assert(Y.numel() == n * d_model_);
@@ -340,6 +347,7 @@ void Embedding::forward(const std::int32_t *ids, std::size_t n,
 void Embedding::backward(const std::int32_t *ids, std::size_t n,
                          const Tensor &dY) {
 
+  require_contiguous(dY, "Embedding::forward", "Y");
   if (!training_) {
     throw error::StateError("Embedding::backward: cannot run backward() on "
                             "eval(), run train() first");
