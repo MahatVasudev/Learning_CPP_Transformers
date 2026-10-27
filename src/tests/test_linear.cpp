@@ -61,8 +61,8 @@ static void test_gemm_submatrix_input() {
   std::vector<float> B = {7, 8, 9, 10, 11, 12}; // 3x2 packed
   std::vector<float> C(4, 0.0f);                // 2x2 packed
 
-  gemm(bufA.data(), B.data(), C.data(), 2, 3, 2, /*lda=*/5, /*ldb=*/2,
-       /*ldc=*/2, false, false, false);
+  gemm(bufA.data(), B.data(), C.data(), 2, 3, 2, /*lda=*/5, 1, /*ldb=*/2, 1,
+       /*ldc=*/2, 1, false, false, false);
   EXPECT(C[0] == 58 && C[1] == 64 && C[2] == 139 && C[3] == 154);
   std::cout << "gemm (sub-matrix input, lda > cols): ok\n";
 }
@@ -73,8 +73,8 @@ static void test_gemm_padded_output() {
   std::vector<float> B = {7, 8, 9, 10, 11, 12}; // 3x2
   std::vector<float> C(8, 99.0f);               // 2 rows, ldc = 4
 
-  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 2, /*ldc=*/4, false, false,
-       false);
+  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, /*ldc=*/4, 1, false,
+       false, false);
   EXPECT(C[0] == 58 && C[1] == 64 && C[4] == 139 && C[5] == 154);
   EXPECT(C[2] == 99 && C[3] == 99 && C[6] == 99 && C[7] == 99);
   std::cout << "gemm (padded output, ldc > N): ok\n";
@@ -86,11 +86,14 @@ static void test_gemm_reuse_overwrites() {
   std::vector<float> B = {7, 8, 9, 10, 11, 12};
   std::vector<float> C(4, 0.0f);
 
-  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 2, 2, false, false, false);
-  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 2, 2, false, false, false);
+  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false, false,
+       false);
+  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false, false,
+       false);
   EXPECT(C[0] == 58 && C[1] == 64 && C[2] == 139 && C[3] == 154);
 
-  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 2, 2, false, false, true);
+  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false, false,
+       true);
   EXPECT(C[0] == 116 && C[3] == 308); // accumulate doubles it
   std::cout << "gemm (overwrite vs accumulate on reuse): ok\n";
 }

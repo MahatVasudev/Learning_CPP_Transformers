@@ -162,6 +162,8 @@ void test_hand_forward() {
   set_values(X, {2, -1, 3, 4});
   Y.fill(99.0f); // stale values must be overwritten
   ff.forward(X, Y);
+  // std::cout << Y.data()[0] << " " << Y.data()[1] << " " << Y.data()[2] << " "
+  //           << Y.data()[3];
   EXPECT(Y.data()[0] == 12 && Y.data()[1] == 20);
   EXPECT(Y.data()[2] == 13 && Y.data()[3] == 26);
   std::cout << "feedforward forward (hand-checked, stale output): ok\n";

@@ -267,7 +267,7 @@ static void test_one_hot_oracle() {
   Tensor Y({n, d}), Y_ref({n, d});
   emb.forward(ids.data(), n, Y);
   gemm(O.data(), emb.parameters()[0]->data(), Y_ref.data(), n, vocab, d,
-       /*lda=*/vocab, /*ldb=*/d, /*ldc=*/d, false, false, false);
+       /*lda=*/vocab, 1, /*ldb=*/d, 1, /*ldc=*/d, 1, false, false, false);
   for (std::size_t i = 0; i < Y.numel(); ++i)
     EXPECT(std::abs(Y.data()[i] - Y_ref.data()[i]) < 1e-6f);
 
@@ -277,7 +277,8 @@ static void test_one_hot_oracle() {
   emb.backward(ids.data(), n, dY);
   Tensor g_ref({vocab, d});
   gemm(O.data(), dY.data(), g_ref.data(), vocab, n, d,
-       /*lda=*/vocab, /*ldb=*/d, /*ldc=*/d, /*transA=*/true, false, false);
+       /*lda=*/vocab, 1, /*ldb=*/d, 1, /*ldc=*/d, 1, /*transA=*/true, false,
+       false);
   const Tensor &g = *emb.gradients()[0];
   for (std::size_t i = 0; i < g.numel(); ++i)
     EXPECT(std::abs(g.data()[i] - g_ref.data()[i]) < 1e-6f);
@@ -301,8 +302,8 @@ static void test_backward_padding() {
 
   Tensor O = one_hot(ids, vocab, pad);
   Tensor g_ref({vocab, d});
-  gemm(O.data(), dY.data(), g_ref.data(), vocab, n, d, vocab, d, d, true, false,
-       false);
+  gemm(O.data(), dY.data(), g_ref.data(), vocab, n, d, vocab, 1, d, 1, d, 1,
+       true, false, false);
   for (std::size_t i = 0; i < g.numel(); ++i)
     EXPECT(std::abs(g.data()[i] - g_ref.data()[i]) < 1e-6f);
   std::cout << "embedding backward (padding row gets no gradient): ok\n";
