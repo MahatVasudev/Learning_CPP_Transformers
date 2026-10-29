@@ -477,6 +477,23 @@ Tensor Tensor::operator+(const float &other) const {
   return new_tensor;
 }
 
+Tensor Tensor::operator*(const float &other) const {
+  Tensor new_tensor(shape_);
+  const float *curr_data = data_.get();
+
+  float *new_data = new_tensor.data();
+
+  for (std::size_t i = 0; i < numel_; i++) {
+    new_data[i] = curr_data[i] * other;
+  }
+
+  return new_tensor;
+}
+
+Tensor Tensor::operator/(const float &other) const {
+  return this * (1.0f / other);
+}
+
 void Tensor::add(const Tensor &other) {
   const std::vector<std::size_t> out_shape =
       broadcast_shape(shape_, other.shape_);
@@ -518,6 +535,18 @@ void Tensor::add(const float &other) {
   for (std::size_t i = 0; i < numel_; i++) {
     data[i] += other;
   }
+}
+
+void Tensor::multiply(const float &other) {
+  float *data = data_.get();
+
+  for (std::size_t i = 0; i < numel_; i++) {
+    data[i] *= other;
+  }
+}
+
+void Tensor::divide(const float &other) {
+  this->multiply((1.0f / other));
 }
 
 Tensor Tensor::sum(int axis, bool keepdims) const {

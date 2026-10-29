@@ -50,11 +50,17 @@ public:
   // Operator
   Tensor operator+(const Tensor &other) const;
   Tensor operator+(const float &other) const;
+  Tensor operator*(const float &other) const;
+  Tensor operator/(const float &other) const;
 
   // Operation methods
 
   void add(const Tensor &other);
   void add(const float &other);
+  void multiply(const float &other);
+  void divide(const float &other);
+
+  // Reducer Operations
   Tensor sum(int axis, bool keepdims = false) const;
   Tensor sum(std::vector<int> &axes, bool keepdims = false) const;
 

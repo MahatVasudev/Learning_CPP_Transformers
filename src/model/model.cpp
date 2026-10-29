@@ -1,4 +1,5 @@
 #include "functional/activations.h"
+#include <cmath>
 #include <cstddef>
 #include <errors/errors.h>
 #include <functional/module.h>
@@ -286,6 +287,12 @@ void MultiheadAttention::forward(const functional::Tensor &X,
   Q = Q.permute({0, 2, 1, 3});
   K = K.permute({0, 2, 1, 3});
   V = V.permute({0, 2, 1, 3});
+
+  functional::matmul(Q, K, *scores_, false, true, false);
+  *scores.divide(std::sqrt(static_assert<float>(K.shape().back())));
+
+  sm_.forward(*scores, *probabilites_);
+  functional::matmul(*probabilites_, V, *head_outputs_);
 }
 
 } // namespace model
