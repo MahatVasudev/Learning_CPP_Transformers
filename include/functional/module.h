@@ -2,11 +2,13 @@
 
 #define MODULE_FUNCTIONAL_H
 
+#include "errors/errors.h"
 #include "functional/tensor.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <vector>
 namespace functional {
 
@@ -38,6 +40,9 @@ protected:
   static std::vector<Tensor *>
   concat_gradients(const std::vector<Module *> &modules);
   static void set_training_all(const std::vector<Module *> &modules, bool mode);
+
+  void require_training(std::string method_name,
+                        std::string additional_message = "");
 };
 
 class LayerNorm final : public Module {

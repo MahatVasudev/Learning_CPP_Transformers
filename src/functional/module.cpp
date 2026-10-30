@@ -42,6 +42,15 @@ void Module::set_training_all(const std::vector<Module *> &modules, bool mode) {
   }
 }
 
+void Module::require_training(std::string method_name,
+                              std::string additional_message) {
+  if (!training_)
+    throw error::StateError(
+        method_name +
+        ": cannot run this method on eval(), run train() first\n" +
+        additional_message);
+}
+
 void LayerNorm::set_training(bool state) {
   Module::set_training(state);
 

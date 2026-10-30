@@ -8,6 +8,10 @@
 #include <vector>
 namespace functional {
 
+// TODO: Need to add support for multiple data types (only numeric)
+// like float, int, double std::size_t... do not support string, char etc
+
+// Tensor Type
 class Tensor {
 public:
   explicit Tensor(std::vector<std::size_t> shape);
@@ -48,7 +52,13 @@ public:
   }
 
   // Operator
+
+  // TODO: need to make the alternative of these operations
+  // currently they only take the order TENSOR + FLOAT
+  // not FLOAT + TENSOR, even though they are the same thing.
+
   Tensor operator+(const Tensor &other) const;
+  Tensor operator-(const Tensor &other) const;
   Tensor operator+(const float &other) const;
   Tensor operator*(const float &other) const;
   Tensor operator/(const float &other) const;
@@ -61,8 +71,11 @@ public:
   void divide(const float &other);
 
   // Reducer Operations
+
   Tensor sum(int axis, bool keepdims = false) const;
   Tensor sum(std::vector<int> &axes, bool keepdims = false) const;
+  Tensor norm(std::size_t norm, std::vector<int> &axes,
+              bool keepdims = false) const;
 
   // For each method for reduction methods
   //

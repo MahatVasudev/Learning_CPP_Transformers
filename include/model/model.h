@@ -46,7 +46,9 @@ public:
                const functional::Tensor *context = nullptr,
                const functional::Tensor *mask = nullptr);
 
-  void backward(const functional::Tensor &dY, functional::Tensor &dQ,
+  void backward(const functional::Tensor &dY, const functional::Tensor &X,
+                const functional::Tensor &Source, functional::Tensor &dX,
+                functional::Tensor &dSource, functional::Tensor &dQ,
                 functional::Tensor &dK, functional::Tensor &dV,
                 bool accumulate = false);
 
@@ -63,8 +65,8 @@ private:
   functional::Softmax sm_;
 
   std::optional<functional::Tensor> Q_proj_, K_proj_, V_proj_, scores_,
-      probabilities_, head_outputs_, concatenated_, d_scores_, d_probabilities_,
-      d_head_outputs_, dQ_proj_, dK_proj_, dV_proj_;
+      probabilities_, head_outputs_, concatenated_, d_scores_,
+      d_probabilities_; // dQ_proj_, dK_proj_, dV_proj_, d_head_outputs_ removed
 
   void ensure_buffers_(const functional::Tensor &X,
                        const functional::Tensor &source);

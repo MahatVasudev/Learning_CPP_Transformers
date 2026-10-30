@@ -1,4 +1,5 @@
 #include "functional/activations.h"
+#include "functional/ops.h"
 #include <cmath>
 #include <cstddef>
 #include <errors/errors.h>
@@ -76,7 +77,6 @@ void FeedForward::forward(const functional::Tensor &X, functional::Tensor &Y) {
 
     );
   ensure_buffers_(X);
-
   l1_.forward(X, *h_pre_);
   // std::cout << "pased l1";
   relu_.forward(*h_pre_, *h_act_);
@@ -88,10 +88,7 @@ void FeedForward::forward(const functional::Tensor &X, functional::Tensor &Y) {
 void FeedForward::backward(const functional::Tensor &X,
                            const functional::Tensor &dY, functional::Tensor &dX,
                            bool accumulate) {
-  if (!training_) {
-    throw error::StateError("FeedForward::backward: cannot run backward() on "
-                            "eval(), run train() first");
-  }
+  require_training("FeedForward::backward");
   if (!h_pre_ || h_pre_->shape() != hidden_shape_(X))
     throw error::StateError("FeedForward::backward: call forward() first");
   if (dY.shape() != X.shape() || dX.shape() != X.shape())
@@ -147,16 +144,16 @@ void MultiheadAttention::set_training(bool state) {
   if (!state) {
     d_scores_.reset();
     d_probabilities_.reset();
-    d_head_outputs_.reset();
-    dQ_proj_.reset();
-    dK_proj_.reset();
-    dV_proj_.reset();
+    // d_head_outputs_.reset();
+    // dQ_proj_.reset();
+    // dK_proj_.reset();
+    // dV_proj_.reset();
   }
 }
 
 void MultiheadAttention::validate_buffers_(const functional::Tensor &X,
                                            const functional::Tensor &source) {
-
+  // X: shape in_dim, d_model
   const std::vector<std::size_t> x_shape = X.shape();
   const std::vector<std::size_t> source_shape = source.shape();
 
@@ -223,12 +220,12 @@ void MultiheadAttention::ensure_gradients_(const functional::Tensor &X,
   const std::vector<std::size_t> score_shape = {x_shape[0], heads_, x_shape[1],
                                                 source_shape[1]};
 
-  ensure(dQ_proj_, x_shape);
-  ensure(dK_proj_, source_shape);
-  ensure(dV_proj_, source_shape);
+  // ensure(dQ_proj_, x_shape);
+  // ensure(dK_proj_, source_shape);
+  // ensure(dV_proj_, source_shape);
   ensure(d_scores_, score_shape);
   ensure(d_probabilities_, score_shape);
-  ensure(d_head_outputs_, x_shape);
+  // ensure(d_head_outputs_, x_shape);
 }
 
 void MultiheadAttention::mhattn_forward_check(
@@ -274,7 +271,6 @@ void MultiheadAttention::forward(const functional::Tensor &X,
   const std::size_t S = x_shape[1];
   const std::size_t Bi = source_shape[0];
   const std::size_t Si = source_shape[1];
-  const std::size_t D = x_shape[2];
 
   query_.forward(X, *Q_proj_);
   key_.forward(source, *K_proj_);
@@ -289,10 +285,68 @@ void MultiheadAttention::forward(const functional::Tensor &X,
   V = V.permute({0, 2, 1, 3});
 
   functional::matmul(Q, K, *scores_, false, true, false);
-  *scores.divide(std::sqrt(static_assert<float>(K.shape().back())));
+  scores_->divide(std::sqrt(static_cast<float>(K.shape().back())));
 
-  sm_.forward(*scores, *probabilites_);
-  functional::matmul(*probabilites_, V, *head_outputs_);
+  sm_.forward(*scores_, *probabilities_);
+  functional::matmul(*probabilities_, V, *head_outputs_);
+
+  Tensor heads = head_outputs_->permute({0, 2, 1, 3});
+  Tensor ordered = heads.clone();
+  ordered.reshape({B, S, heads_ * head_dims_});
+
+  *concatenated_ = std::move(ordered);
+
+  output_.forward(*concatenated_, Y);
+}
+
+void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
+                                  const Tensor &Source, Tensor &dX,
+                                  Tensor &dSource, Tensor &dQ, Tensor &dK,
+                                  Tensor &dV, bool accumulate) {
+  require_training("MultiheadAttention::backward");
+  const std::vector<std::size_t> &dy_shape = dY.shape();
+  ensure_gradients_(X, Source);
+  const std::size_t B = X.shape()[0];
+  const std::size_t Sq = X.shape()[1];
+  const std::size_t Skv = Source.shape()[1];
+  Tensor d_concatenated_(dy_shape);
+  output_.backward(*concatenated_, dY, d_concatenated_, false);
+  Tensor d_heads =
+      d_concatenated_.view({dy_shape[0], dy_shape[1], heads_, head_dims_})
+          .permute({0, 2, 1, 3});
+
+  functional::matmul(*probabilities_, d_heads, dV, true, false, accumulate);
+  Tensor V = V_proj_.value()
+                 .view({B, Skv, this->heads_, this->head_dims_})
+                 .permute({0, 2, 1, 3});
+
+  Tensor K = K_proj_.value()
+                 .view({B, Skv, this->heads_, this->head_dims_})
+                 .permute({0, 2, 1, 3});
+
+  Tensor Q = Q_proj_.value()
+                 .view({B, Sq, this->heads_, this->head_dims_})
+                 .permute({0, 2, 1, 3});
+
+  functional::matmul(d_heads, V, *d_probabilities_, false, true, false);
+  sm_.backward(*scores_, *probabilities_, *d_probabilities_, *d_scores_);
+
+  d_scores_->divide(std::sqrt(static_cast<float>(head_dims_)));
+
+  functional::matmul(*d_scores_, K, dQ, false, false, accumulate);
+  functional::matmul(*d_scores_, Q, dK, true, false, accumulate);
+
+  Tensor dQ_o = dQ.permute({0, 2, 1, 3}).clone();
+  Tensor dK_o = dK.permute({0, 2, 1, 3}).clone();
+  Tensor dV_o = dV.permute({0, 2, 1, 3}).clone();
+
+  dQ_o.reshape({B, Sq, in_dims_});
+  dK_o.reshape({B, Skv, in_dims_});
+  dV_o.reshape({B, Skv, in_dims_});
+
+  query_.backward(X, dQ_o, dX, accumulate);
+  key_.backward(Source, dK_o, dSource, accumulate);
+  value_.backward(Source, dV_o, dSource, true);
 }
 
 } // namespace model

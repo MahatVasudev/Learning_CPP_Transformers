@@ -84,12 +84,6 @@ std::vector<std::size_t> matmul_shape(const Tensor &A, const Tensor &B,
 std::vector<std::size_t> matmul_shape(const std::vector<std::size_t> shape_a,
                                       const std::vector<std::size_t> shape_b,
                                       bool transpose_a, bool transpose_b) {
-  // TODO: Should allow broadcasting, so we will first check if shape_a or
-  // shape_b is smaller then whether they are broadcastable; The next steps
-  // should be to just check whether the last two dimensions are able to
-  // multiply;
-  // return the resulting matrix, by changing the last two dimensions
-  //
   if (shape_b.empty() || shape_a.empty()) {
     throw error::ShapeError(
         "matmul:", "scaler multiplcation is not allowed!", shape_a,
@@ -124,7 +118,6 @@ std::vector<std::size_t> matmul_shape(const std::vector<std::size_t> shape_a,
   const std::size_t N = transpose_b ? b[effective_rank_b - 2] : b.back();
 
   if (k_a != k_b) {
-    // TODO: throw shape error
     throw error::ShapeError(
         "matmul",
         "A and B tensors have incompatible shapes for matrix multiplication",
@@ -272,14 +265,12 @@ void bmm(const Tensor &A, const Tensor &B, Tensor &C) {
   const std::size_t N = !is_a_small ? b_shape[1] : b_shape[2];
 
   if (batch_a != batch_b) {
-    // TODO: Write shape error that batches donot match
     throw error::ShapeError(
         "bemm", "Expected A and B to have the same batch size...", a_shape,
         error::make_message("got B shape: ", error::format_shape(b_shape)));
   }
 
   if (K != K_b) {
-    // TODO: Write that matrix multiplication cannot be possible
     throw error::ShapeError(
         "bemm", "inner dimensions must match for matrix multiplication",
         a_shape,
