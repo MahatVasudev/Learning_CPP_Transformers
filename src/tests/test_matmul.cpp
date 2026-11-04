@@ -1,16 +1,18 @@
-#include "functional/gradcheck.h"
-#include "functional/ops.h"
-#include "functional/tensor.h"
+#include "core/tensor.h"
+#include "ops/ops.h"
+#include "testing/gradcheck.h"
 #include "tests/tests.h"
 
-#include "tests/expect.h"
+#include "testing/expect.h"
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <random>
 
 using namespace tests;
-using namespace functional;
+using namespace core;
+using namespace ops;
+using namespace testing;
 
 static void fill_random(Tensor &t, std::mt19937 &rng) {
   std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
@@ -46,7 +48,7 @@ static void test_forward_hand() {
   B(0, 1) = 6;
   B(1, 0) = 7;
   B(1, 1) = 8;
-  matmul(A, B, C);
+  ops::matmul(A, B, C);
   EXPECT(C(0, 0) == 19 && C(0, 1) == 22);
   EXPECT(C(1, 0) == 43 && C(1, 1) == 50);
   std::cout << "forward (hand-checked): ok\n";

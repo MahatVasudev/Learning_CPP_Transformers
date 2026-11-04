@@ -1,20 +1,20 @@
-#include "tests/expect.h"
+#include "testing/expect.h"
 #include "tests/tests.h"
 #include <algorithm>
 #include <cmath>
+#include <core/tensor.h>
 #include <cstdlib>
-#include <functional/tensor.h>
 #include <iostream>
+#include <nn/initialization.h>
 #include <random>
 #include <set>
 #include <stdexcept>
-#include <utils/utils.h>
 #include <vector>
 
 using namespace tests;
-using functional::Tensor;
-using utils::fill_random;
-using utils::Initialize;
+using core::Tensor;
+using nn::fill_random;
+using nn::Initialize;
 
 struct Stats {
   double mean, stddev, min, max;

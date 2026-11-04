@@ -1,15 +1,20 @@
 #include <algorithm>
 #include <cmath>
+#include <core/errors.h>
+#include <core/tensor.h>
+#include <core/utils.h>
 #include <cstdint>
-#include <errors/errors.h>
-#include <functional/module.h>
-#include <functional/ops.h>
-#include <functional/tensor.h>
+#include <nn/initialization.h>
+#include <nn/module.h>
+#include <ops/ops.h>
 #include <optional>
-#include <utils/utils.h>
 #include <vector>
 
-namespace functional {
+using core::Tensor;
+using core::utils::require_contiguous;
+namespace error = core::error;
+
+namespace nn {
 
 std::vector<Tensor *>
 Module::concat_parameters(const std::vector<Module *> &modules) {
@@ -201,7 +206,7 @@ Linear::Linear(std::size_t in_features, std::size_t out_features, bool bias,
     : in_(in_features), out_(out_features), bias_(bias),
       W_(Tensor({out_features, in_features})), B_(Tensor({out_features})) {
   assert(in_features > 0 && out_features > 0);
-  utils::fill_random(W_, utils::Initialize::xavier_uniform(), seed);
+  fill_random(W_, Initialize::xavier_uniform(), seed);
 }
 
 void Linear::set_training(bool state) {
@@ -234,7 +239,7 @@ void Linear::forward(const Tensor &X, Tensor &Y) const {
     Y.add(B_);
   }
 
-  matmul(X, W_, Y, false, true, true);
+  ops::matmul(X, W_, Y, false, true, true);
 }
 
 void Linear::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
@@ -254,7 +259,7 @@ void Linear::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   assert(&dX != &X && &dX != &dY);
   ensure_gradients_();
 
-  matmul(dY, W_, dX, false, false, accumulate);
+  ops::matmul(dY, W_, dX, false, false, accumulate);
   // gemm(dY.data(), W_.data(), dX.data(), rows, out_, in_, out_, 1, in_, 1,
   // in_,
   //      1, false, false, accumulate);
@@ -262,7 +267,7 @@ void Linear::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   Tensor X2 = X.view({rows, in_});
   Tensor dY2 = dY.view({rows, out_});
 
-  matmul(dY2, X2, *dW_, true, false, true);
+  ops::matmul(dY2, X2, *dW_, true, false, true);
 
   if (bias_) {
     // const float *dy = dY.data();
@@ -303,7 +308,7 @@ Embedding::Embedding(std::size_t vocab_size, std::size_t d_model, unsigned seed,
         error::make_message("padding_idx cannot be greater than ", vocab_size_,
                             " (vocab_size)"));
   }
-  utils::fill_random(Emb_, utils::Initialize::normal(0.0f, 1.0f), seed);
+  fill_random(Emb_, Initialize::normal(0.0f, 1.0f), seed);
 
   if (padding_idx_) {
     float *row = Emb_.data() + *padding_idx_ * d_model_;
@@ -387,4 +392,4 @@ std::vector<Tensor *> Embedding::gradients() {
   ensure_gradient();
   return {&*dEmb_};
 }
-} // namespace functional
+} // namespace nn

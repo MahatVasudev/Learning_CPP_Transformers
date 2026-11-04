@@ -1,9 +1,13 @@
-#include "functional/activations.h"
-#include "functional/tensor.h"
+#include "nn/activations.h"
+#include "core/tensor.h"
+#include "core/utils.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
-namespace functional {
+
+using core::utils::require_contiguous;
+
+namespace nn {
 void ReLU::forward(const Tensor &X, Tensor &Y) const {
   require_contiguous(X, "ReLU::forward", "X");
   require_contiguous(Y, "ReLU::forward", "Y");
@@ -129,4 +133,4 @@ void Softmax::backward(const Tensor &X, const Tensor &Y, const Tensor &dY,
   }
 }
 
-} // namespace functional
+} // namespace nn

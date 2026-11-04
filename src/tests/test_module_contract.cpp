@@ -1,7 +1,7 @@
-#include <functional/module.h> // adjust: wherever Module/Linear/LayerNorm/Embedding live
-#include <functional/tensor.h>
-#include <model/model.h>
-#include <tests/expect.h>
+#include <core/tensor.h>
+#include <nn/model.h>
+#include <nn/module.h> // adjust: wherever Module/Linear/LayerNorm/Embedding live
+#include <testing/expect.h>
 #include <tests/tests.h>
 
 #include <cmath>
@@ -17,12 +17,12 @@
 
 namespace {
 
-using functional::Embedding;
-using functional::LayerNorm;
-using functional::Linear;
-using functional::Module;
-using functional::Tensor;
-using model::FeedForward;
+using core::Tensor;
+using nn::Embedding;
+using nn::FeedForward;
+using nn::LayerNorm;
+using nn::Linear;
+using nn::Module;
 
 // ---------- helpers ----------
 

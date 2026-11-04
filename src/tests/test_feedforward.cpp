@@ -1,8 +1,8 @@
-#include <functional/gradcheck.h>
-#include <functional/module.h>
-#include <functional/tensor.h>
-#include <model/model.h>
-#include <tests/expect.h>
+#include <core/tensor.h>
+#include <nn/model.h>
+#include <nn/module.h>
+#include <testing/expect.h>
+#include <testing/gradcheck.h>
 #include <tests/tests.h>
 
 #include <cmath>
@@ -15,12 +15,12 @@
 
 namespace {
 
-using functional::GradcheckResult;
-using functional::Linear;
-using functional::Module;
-using functional::ReLU;
-using functional::Tensor;
-using model::FeedForward;
+using core::Tensor;
+using nn::FeedForward;
+using nn::Linear;
+using nn::Module;
+using nn::ReLU;
+using testing::GradcheckResult;
 
 // ---------- helpers ----------
 
@@ -440,12 +440,12 @@ void test_gradcheck() {
   const char *names[4] = {"W1", "b1", "W2", "b2"};
 
   std::cout << "feedforward gradcheck:\n";
-  GradcheckResult rx = functional::check_gradient(X, dX, loss, eps, tol);
+  GradcheckResult rx = testing::check_gradient(X, dX, loss, eps, tol);
   std::cout << "  X : max rel err " << rx.max_rel_error << "\n";
   EXPECT(rx.passed);
   for (std::size_t i = 0; i < 4; ++i) {
     GradcheckResult r =
-        functional::check_gradient(*params[i], *grads[i], loss, eps, tol);
+        testing::check_gradient(*params[i], *grads[i], loss, eps, tol);
     std::cout << "  " << names[i] << ": max rel err " << r.max_rel_error
               << "\n";
     EXPECT(r.passed);
@@ -456,12 +456,12 @@ void test_gradcheck() {
     Tensor bad = grads[i]->clone();
     for (std::size_t n = 0; n < bad.numel(); ++n)
       bad.data()[n] *= 1.1f;
-    EXPECT(!functional::check_gradient(*params[i], bad, loss, eps, tol).passed);
+    EXPECT(!testing::check_gradient(*params[i], bad, loss, eps, tol).passed);
   }
   // Self-test: the parameters returned AS gradients (the earlier wiring slip)
   // must FAIL.
-  EXPECT(!functional::check_gradient(*params[2], *params[2], loss, eps, tol)
-              .passed);
+  EXPECT(
+      !testing::check_gradient(*params[2], *params[2], loss, eps, tol).passed);
   std::cout << "feedforward gradcheck (incl. self-tests): ok\n";
 }
 

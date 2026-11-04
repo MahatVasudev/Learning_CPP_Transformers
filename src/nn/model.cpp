@@ -1,17 +1,20 @@
-#include "functional/activations.h"
-#include "functional/ops.h"
+#include "nn/activations.h"
+#include "ops/ops.h"
 #include <cmath>
+#include <core/errors.h>
 #include <cstddef>
-#include <errors/errors.h>
-#include <functional/module.h>
-#include <model/model.h>
+#include <limits>
+#include <nn/model.h>
+#include <nn/module.h>
 #include <vector>
 
-using functional::Tensor;
+using core::Tensor;
 
-namespace model {
+namespace error = core::error;
 
-void ensure(std::optional<functional::Tensor> &buffer,
+namespace nn {
+
+void ensure(std::optional<Tensor> &buffer,
             const std::vector<std::size_t> &shape) {
 
   if (buffer && buffer->shape() == shape) {
@@ -24,14 +27,13 @@ void ensure(std::optional<functional::Tensor> &buffer,
 // FeedForward Implementation -------------------------------
 
 FeedForward::FeedForward(std::size_t d_model, std::size_t d_ff, unsigned seed)
-    : d_model_(d_model), d_ff_(d_ff),
-      l1_(functional::Linear(d_model, d_ff, true, seed)),
-      l2_(functional::Linear(d_ff, d_model, true, seed + 1)), relu_() {}
+    : d_model_(d_model), d_ff_(d_ff), l1_(Linear(d_model, d_ff, true, seed)),
+      l2_(Linear(d_ff, d_model, true, seed + 1)), relu_() {}
 
 void FeedForward::set_training(bool state) {
-  functional::Module::set_training(state);
+  Module::set_training(state);
 
-  functional::Module::set_training_all({&l1_, &l2_}, state);
+  Module::set_training_all({&l1_, &l2_}, state);
 
   if (!state) {
     dh_pre_.reset();
@@ -39,7 +41,7 @@ void FeedForward::set_training(bool state) {
   }
 }
 
-void FeedForward::ensure_gradients_(const functional::Tensor &X) {
+void FeedForward::ensure_gradients_(const Tensor &X) {
   const std::vector<std::size_t> shape = this->hidden_shape_(X);
   if (dh_pre_ && dh_pre_->shape() == shape)
     return; // steady state: no allocation
@@ -47,8 +49,7 @@ void FeedForward::ensure_gradients_(const functional::Tensor &X) {
   dh_act_.emplace(shape);
 }
 
-std::vector<std::size_t>
-FeedForward::hidden_shape_(const functional::Tensor &X) const {
+std::vector<std::size_t> FeedForward::hidden_shape_(const Tensor &X) const {
   if (X.rank() < 1 || X.shape().back() != d_model_)
     throw error::ShapeError(
         "FeedForward",
@@ -60,7 +61,7 @@ FeedForward::hidden_shape_(const functional::Tensor &X) const {
   return shape;
 }
 
-void FeedForward::ensure_buffers_(const functional::Tensor &X) {
+void FeedForward::ensure_buffers_(const Tensor &X) {
   const std::vector<std::size_t> shape = this->hidden_shape_(X);
   if (h_pre_ && h_pre_->shape() == shape)
     return; // steady state: no allocation
@@ -68,7 +69,7 @@ void FeedForward::ensure_buffers_(const functional::Tensor &X) {
   h_act_.emplace(shape);
 }
 
-void FeedForward::forward(const functional::Tensor &X, functional::Tensor &Y) {
+void FeedForward::forward(const Tensor &X, Tensor &Y) {
   if (Y.shape() != X.shape())
     throw error::ShapeError("FeedForward::forward",
                             "the shape of Y must be equal to X", Y.shape(),
@@ -85,8 +86,7 @@ void FeedForward::forward(const functional::Tensor &X, functional::Tensor &Y) {
   // std::cout << "pased l3";
 }
 
-void FeedForward::backward(const functional::Tensor &X,
-                           const functional::Tensor &dY, functional::Tensor &dX,
+void FeedForward::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                            bool accumulate) {
   require_training("FeedForward::backward");
   if (!h_pre_ || h_pre_->shape() != hidden_shape_(X))
@@ -128,31 +128,29 @@ MultiheadAttention::MultiheadAttention(std::size_t in_dims, std::size_t heads,
   }
 }
 
-std::vector<functional::Tensor *> MultiheadAttention::parameters() {
+std::vector<Tensor *> MultiheadAttention::parameters() {
   return concat_parameters({&query_, &key_, &value_, &output_});
 }
 
-std::vector<functional::Tensor *> MultiheadAttention::gradients() {
+std::vector<Tensor *> MultiheadAttention::gradients() {
   return concat_gradients({&query_, &key_, &value_, &output_});
 }
 
 void MultiheadAttention::set_training(bool state) {
-  functional::Module::set_training(state);
+  Module::set_training(state);
 
-  functional::Module::set_training_all({&query_, &key_, &value_, &output_},
-                                       state);
+  Module::set_training_all({&query_, &key_, &value_, &output_}, state);
   if (!state) {
     d_scores_.reset();
     d_probabilities_.reset();
-    // d_head_outputs_.reset();
-    // dQ_proj_.reset();
-    // dK_proj_.reset();
-    // dV_proj_.reset();
+    dQ_.reset();
+    dK_.reset();
+    dV_.reset();
   }
 }
 
-void MultiheadAttention::validate_buffers_(const functional::Tensor &X,
-                                           const functional::Tensor &source) {
+void MultiheadAttention::validate_buffers_(const Tensor &X,
+                                           const Tensor &source) {
   // X: shape in_dim, d_model
   const std::vector<std::size_t> x_shape = X.shape();
   const std::vector<std::size_t> source_shape = source.shape();
@@ -189,8 +187,8 @@ void MultiheadAttention::validate_buffers_(const functional::Tensor &X,
   }
 }
 
-void MultiheadAttention::ensure_buffers_(const functional::Tensor &X,
-                                         const functional::Tensor &source) {
+void MultiheadAttention::ensure_buffers_(const Tensor &X,
+                                         const Tensor &source) {
 
   validate_buffers_(X, source);
 
@@ -209,8 +207,8 @@ void MultiheadAttention::ensure_buffers_(const functional::Tensor &X,
   ensure(concatenated_, x_shape);
 }
 
-void MultiheadAttention::ensure_gradients_(const functional::Tensor &X,
-                                           const functional::Tensor &source) {
+void MultiheadAttention::ensure_gradients_(const Tensor &X,
+                                           const Tensor &source) {
 
   ensure_buffers_(X, source);
 
@@ -220,17 +218,16 @@ void MultiheadAttention::ensure_gradients_(const functional::Tensor &X,
   const std::vector<std::size_t> score_shape = {x_shape[0], heads_, x_shape[1],
                                                 source_shape[1]};
 
-  // ensure(dQ_proj_, x_shape);
-  // ensure(dK_proj_, source_shape);
-  // ensure(dV_proj_, source_shape);
+  ensure(dQ_, x_shape);
+  ensure(dK_, source_shape);
+  ensure(dV_, source_shape);
   ensure(d_scores_, score_shape);
   ensure(d_probabilities_, score_shape);
   // ensure(d_head_outputs_, x_shape);
 }
 
-void MultiheadAttention::mhattn_forward_check(
-    const functional::Tensor &X, const functional::Tensor &Y,
-    const functional::Tensor *context) {
+void MultiheadAttention::mhattn_forward_check(const Tensor &X, const Tensor &Y,
+                                              const Tensor *context) {
   if (X.rank() != 3 || X.shape().back() != in_dims_) {
     throw error::ShapeError(
         "MultiheadAttention::forward",
@@ -245,7 +242,7 @@ void MultiheadAttention::mhattn_forward_check(
         error::make_message("X shape: ", error::format_shape(X.shape())));
   }
 
-  const functional::Tensor &source = context ? *context : X;
+  const Tensor &source = context ? *context : X;
   if (source.rank() != 3 || source.shape()[0] != X.shape()[0] ||
       source.shape().back() != in_dims_) {
     throw error::ShapeError(
@@ -256,21 +253,40 @@ void MultiheadAttention::mhattn_forward_check(
   }
 }
 
-void MultiheadAttention::forward(const functional::Tensor &X,
-                                 functional::Tensor &Y,
-                                 const functional::Tensor *context,
-                                 const functional::Tensor *mask) {
+void MultiheadAttention::forward(const Tensor &X, Tensor &Y,
+                                 const Tensor *context, const Tensor *mask) {
 
   mhattn_forward_check(X, Y, context);
-  const functional::Tensor &source = context ? *context : X;
+  const Tensor &source = context ? *context : X;
   ensure_buffers_(X, source);
 
   const std::vector<std::size_t> x_shape = X.shape();
   const std::vector<std::size_t> source_shape = source.shape();
+
+  if (x_shape[0] != source_shape[0]) {
+    throw error::ShapeError(
+        "MultiheadAttention::forward",
+        "the batch of X (B) and Context (Bi) must be same", x_shape,
+        error::make_message("got Context shape: ",
+                            error::format_shape(source_shape)));
+  }
+
   const std::size_t B = x_shape[0];
   const std::size_t S = x_shape[1];
   const std::size_t Bi = source_shape[0];
   const std::size_t Si = source_shape[1];
+
+  const Tensor *causal_mask = nullptr;
+
+  if (is_causal_) {
+    if (!causal_mask_ || causal_mask_->shape()[2] != S ||
+        causal_mask_->shape()[3] != Si) {
+
+      causal_mask_ = create_causal_mask(S, Si);
+    }
+
+    causal_mask = &*causal_mask_;
+  }
 
   query_.forward(X, *Q_proj_);
   key_.forward(source, *K_proj_);
@@ -284,14 +300,21 @@ void MultiheadAttention::forward(const functional::Tensor &X,
   K = K.permute({0, 2, 1, 3});
   V = V.permute({0, 2, 1, 3});
 
-  functional::matmul(Q, K, *scores_, false, true, false);
+  ops::matmul(Q, K, *scores_, false, true, false);
   scores_->divide(std::sqrt(static_cast<float>(K.shape().back())));
 
-  sm_.forward(*scores_, *probabilities_);
-  functional::matmul(*probabilities_, V, *head_outputs_);
+  if (mask) {
+    scores_->mask_fill(*mask, -std::numeric_limits<float>::infinity());
+  }
 
-  Tensor heads = head_outputs_->permute({0, 2, 1, 3});
-  Tensor ordered = heads.clone();
+  if (is_causal_) {
+    scores_->mask_fill(*causal_mask, -std::numeric_limits<float>::infinity());
+  }
+
+  sm_.forward(*scores_, *probabilities_);
+  ops::matmul(*probabilities_, V, *head_outputs_);
+
+  Tensor ordered = head_outputs_->permute({0, 2, 1, 3}).contiguous();
   ordered.reshape({B, S, heads_ * head_dims_});
 
   *concatenated_ = std::move(ordered);
@@ -301,8 +324,7 @@ void MultiheadAttention::forward(const functional::Tensor &X,
 
 void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
                                   const Tensor &Source, Tensor &dX,
-                                  Tensor &dSource, Tensor &dQ, Tensor &dK,
-                                  Tensor &dV, bool accumulate) {
+                                  Tensor &dSource, bool accumulate) {
   require_training("MultiheadAttention::backward");
   const std::vector<std::size_t> &dy_shape = dY.shape();
   ensure_gradients_(X, Source);
@@ -315,7 +337,7 @@ void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
       d_concatenated_.view({dy_shape[0], dy_shape[1], heads_, head_dims_})
           .permute({0, 2, 1, 3});
 
-  functional::matmul(*probabilities_, d_heads, dV, true, false, accumulate);
+  ops::matmul(*probabilities_, d_heads, *dV_, true, false, accumulate);
   Tensor V = V_proj_.value()
                  .view({B, Skv, this->heads_, this->head_dims_})
                  .permute({0, 2, 1, 3});
@@ -328,17 +350,17 @@ void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
                  .view({B, Sq, this->heads_, this->head_dims_})
                  .permute({0, 2, 1, 3});
 
-  functional::matmul(d_heads, V, *d_probabilities_, false, true, false);
+  ops::matmul(d_heads, V, *d_probabilities_, false, true, false);
   sm_.backward(*scores_, *probabilities_, *d_probabilities_, *d_scores_);
 
   d_scores_->divide(std::sqrt(static_cast<float>(head_dims_)));
 
-  functional::matmul(*d_scores_, K, dQ, false, false, accumulate);
-  functional::matmul(*d_scores_, Q, dK, true, false, accumulate);
+  ops::matmul(*d_scores_, K, *dQ_, false, false, accumulate);
+  ops::matmul(*d_scores_, Q, *dK_, true, false, accumulate);
 
-  Tensor dQ_o = dQ.permute({0, 2, 1, 3}).clone();
-  Tensor dK_o = dK.permute({0, 2, 1, 3}).clone();
-  Tensor dV_o = dV.permute({0, 2, 1, 3}).clone();
+  Tensor dQ_o = dQ_->permute({0, 2, 1, 3}).contiguous();
+  Tensor dK_o = dK_->permute({0, 2, 1, 3}).contiguous();
+  Tensor dV_o = dV_->permute({0, 2, 1, 3}).contiguous();
 
   dQ_o.reshape({B, Sq, in_dims_});
   dK_o.reshape({B, Skv, in_dims_});
@@ -349,4 +371,34 @@ void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
   value_.backward(Source, dV_o, dSource, true);
 }
 
-} // namespace model
+Tensor MultiheadAttention::create_causal_mask(std::size_t query_length,
+                                              std::size_t key_length,
+                                              std::size_t query_offset) {
+
+  if (query_length == 0 || key_length == 0 || query_offset >= key_length) {
+    // TODO: throw error for offset cannot be greater than length
+    throw error::StateError(error::make_message(
+        "MultiheadAttention::create_causal_mask: Got Invalid Configuration of "
+        "query_length, key_length, query_offset; query_length, key_length > 0 "
+        "and query_offset < key_length.\ncurrently got: query_length = ",
+        query_length, " key_length = ", key_length,
+        " query_offset = ", query_offset));
+  }
+
+  Tensor causal({1, 1, query_length, key_length});
+
+  float *caus_data = causal.data();
+
+  for (std::size_t i = 0; i < query_length; ++i) {
+    const std::size_t row_offset = i * key_length;
+    const std::size_t causal_limit = i + query_offset;
+
+    for (std::size_t j = 0; j < key_length; j++) {
+      caus_data[row_offset + j] = (j <= causal_limit) ? 1.0f : 0.0f;
+    }
+  }
+
+  return causal;
+}
+
+} // namespace nn

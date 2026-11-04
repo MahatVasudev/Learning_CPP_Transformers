@@ -1,9 +1,9 @@
-#include "functional/gradcheck.h"
-#include "functional/module.h" // adjust if LayerNorm lives elsewhere
-#include "functional/tensor.h"
+#include "core/tensor.h"
+#include "nn/module.h" // adjust if LayerNorm lives elsewhere
+#include "testing/gradcheck.h"
 #include "tests/tests.h"
 
-#include "tests/expect.h"
+#include "testing/expect.h"
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -11,7 +11,11 @@
 #include <vector>
 
 using namespace tests;
-using namespace functional;
+
+using namespace tests;
+using namespace nn;
+using namespace core;
+using namespace testing;
 
 static const double EPS = 1e-5; // LayerNorm's default epsilon
 

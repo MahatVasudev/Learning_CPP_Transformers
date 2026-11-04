@@ -1,4 +1,4 @@
-#include "functional/tensor.h"
+#include "core/tensor.h"
 
 #include "tests/tests.h"
 #include <cassert>
@@ -6,7 +6,7 @@
 #include <utility>
 
 using namespace tests;
-using functional::Tensor;
+using core::Tensor;
 
 static Tensor make() {
   Tensor t({2, 3});

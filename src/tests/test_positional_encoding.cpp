@@ -1,6 +1,6 @@
-#include <functional/positional_encoding.h>
-#include <functional/tensor.h>
-#include <tests/expect.h>
+#include <core/tensor.h>
+#include <nn/positional_encoding.h>
+#include <testing/expect.h>
 #include <tests/tests.h>
 
 #include <cmath>
@@ -10,8 +10,8 @@
 
 namespace {
 
-using functional::PositionalEncodingSinusoidal;
-using functional::Tensor;
+using core::Tensor;
+using nn::PositionalEncodingSinusoidal;
 
 // One place to adapt to your accessor. If encoding() returns a reference
 // instead of a pointer, drop the `*`.

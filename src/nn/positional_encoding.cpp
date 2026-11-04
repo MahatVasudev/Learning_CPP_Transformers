@@ -1,11 +1,14 @@
 #include <cassert>
 #include <cmath>
+#include <core/errors.h>
+#include <core/tensor.h>
 #include <cstddef>
-#include <errors/errors.h>
-#include <functional/positional_encoding.h>
-#include <functional/tensor.h>
+#include <nn/positional_encoding.h>
 #include <stdexcept>
 
+using core::Tensor;
+
+namespace error = core::error;
 double angle(std::size_t pos, std::size_t i, std::size_t d_model) {
 
   const double exponent =
@@ -14,7 +17,7 @@ double angle(std::size_t pos, std::size_t i, std::size_t d_model) {
   return static_cast<double>(pos) / std::pow(10000.0, exponent);
 }
 
-namespace functional {
+namespace nn {
 
 PositionalEncodingSinusoidal::PositionalEncodingSinusoidal(std::size_t max_len,
                                                            std::size_t d_model)
@@ -85,5 +88,5 @@ float PositionalEncodingSinusoidal::cosine_value_(const std::size_t pos,
   return static_cast<float>(std::cos(angle(pos, i, d_model_)));
 }
 
-} // namespace functional
+} // namespace nn
   //

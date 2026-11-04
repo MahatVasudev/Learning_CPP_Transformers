@@ -1,16 +1,20 @@
 #include <cassert>
 #include <cmath>
-#include <errors/errors.h>
-#include <functional/tensor.h>
+#include <core/errors.h>
+#include <core/tensor.h>
+#include <nn/initialization.h>
 #include <random>
 #include <stdexcept>
 #include <type_traits>
-#include <utils/utils.h>
 
-namespace utils {
+using core::Tensor;
+
+namespace error = core::error;
+
+namespace nn {
 
 template <typename Dist>
-void fill_dist(functional::Tensor &t, Dist dist, std::mt19937 rng) {
+void fill_dist(Tensor &t, Dist dist, std::mt19937 rng) {
 
   float *_t = t.data();
 
@@ -19,7 +23,7 @@ void fill_dist(functional::Tensor &t, Dist dist, std::mt19937 rng) {
   }
 }
 
-Fans get_fans(const functional::Tensor &t) {
+Fans get_fans(const Tensor &t) {
   if (t.rank() < 2) {
     throw error::ShapeError(
         "utils::get_fans",
@@ -46,8 +50,7 @@ Fans get_fans(const functional::Tensor &t) {
           static_cast<float>(out * receptive)};
 }
 
-void fill_random(functional::Tensor &t, const Initialize &init,
-                 const unsigned seed) {
+void fill_random(Tensor &t, const Initialize &init, const unsigned seed) {
   std::mt19937 rng(seed);
   switch (init.kind) {
   case InitializeKind::Zeros: {
@@ -106,4 +109,4 @@ template <typename T> T iterative_product_vector(std::vector<T> &data) {
   return value;
 }
 
-} // namespace utils
+} // namespace nn

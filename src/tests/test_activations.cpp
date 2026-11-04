@@ -1,7 +1,7 @@
-#include "functional/activations.h"
-#include "functional/gradcheck.h"
-#include "functional/tensor.h"
-#include "tests/expect.h"
+#include "core/tensor.h"
+#include "nn/activations.h"
+#include "testing/expect.h"
+#include "testing/gradcheck.h"
 #include "tests/tests.h"
 #include <cmath>
 #include <cstdlib>
@@ -11,7 +11,9 @@
 #include <vector>
 
 using namespace tests;
-using namespace functional;
+using namespace nn;
+using namespace testing;
+using namespace core;
 
 static void fill_random(Tensor &t, std::mt19937 &rng) {
   std::uniform_real_distribution<float> dist(-1.0f, 1.0f);

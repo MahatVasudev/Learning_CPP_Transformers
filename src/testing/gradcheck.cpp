@@ -1,11 +1,13 @@
-#include "functional/gradcheck.h"
+#include "testing/gradcheck.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <core/tensor.h>
 #include <cstdlib>
 #include <functional>
 
-namespace functional {
+using core::Tensor;
+namespace testing {
 
 GradcheckResult check_gradient(Tensor &x, const Tensor &analytic_grad,
                                const std::function<double()> &loss, double eps,
@@ -58,4 +60,4 @@ GradcheckResult check_gradient(Tensor &x, const Tensor &analytic_grad,
 
   return grad_result;
 }
-} // namespace functional
+} // namespace testing

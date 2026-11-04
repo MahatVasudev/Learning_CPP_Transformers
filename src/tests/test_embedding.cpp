@@ -1,10 +1,10 @@
 #include "tests/tests.h"
-#include <functional/gradcheck.h>
-#include <functional/module.h> // adjust: wherever Embedding is declared
-#include <functional/ops.h>    // gemm
-#include <functional/tensor.h>
+#include <core/tensor.h>
+#include <nn/module.h> // adjust: wherever Embedding is declared
+#include <ops/ops.h>   // gemm
+#include <testing/gradcheck.h>
 
-#include "tests/expect.h"
+#include "testing/expect.h"
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -15,7 +15,10 @@
 #include <vector>
 
 using namespace tests;
-using namespace functional;
+using namespace nn;
+using namespace core;
+using namespace ops;
+using namespace testing;
 using Ids = std::vector<std::int32_t>;
 
 static void fill_random(Tensor &t, std::mt19937 &rng) {

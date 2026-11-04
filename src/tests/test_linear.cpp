@@ -1,10 +1,10 @@
-#include "functional/gradcheck.h"
-#include "functional/module.h" // adjust if Linear lives in another header
-#include "functional/ops.h"
-#include "functional/tensor.h"
+#include "core/tensor.h"
+#include "nn/module.h" // adjust if Linear lives in another header
+#include "ops/ops.h"
+#include "testing/gradcheck.h"
 #include "tests/tests.h"
 
-#include "tests/expect.h"
+#include "testing/expect.h"
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
@@ -12,7 +12,9 @@
 #include <vector>
 
 using namespace tests;
-using namespace functional;
+using namespace nn;
+using namespace core;
+using namespace testing;
 
 static void fill_random(Tensor &t, std::mt19937 &rng) {
   std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
@@ -33,9 +35,9 @@ static void set_values(Tensor &t, const std::vector<float> &vals) {
     t.data()[n] = vals[n];
 }
 
-static bool near(float a, float b, float tol = 1e-5f) {
-  return std::abs(a - b) <= tol;
-}
+// static bool near(float a, float b, float tol = 1e-5f) {
+//   return std::abs(a - b) <= tol;
+// }
 
 static bool same_data(const Tensor &a, const Tensor &b, float tol = 0.0f) {
   if (a.shape() != b.shape())
@@ -61,8 +63,9 @@ static void test_gemm_submatrix_input() {
   std::vector<float> B = {7, 8, 9, 10, 11, 12}; // 3x2 packed
   std::vector<float> C(4, 0.0f);                // 2x2 packed
 
-  gemm(bufA.data(), B.data(), C.data(), 2, 3, 2, /*lda=*/5, 1, /*ldb=*/2, 1,
-       /*ldc=*/2, 1, false, false, false);
+  ops::gemm(bufA.data(), B.data(), C.data(), 2, 3, 2, /*lda=*/5, 1, /*ldb=*/2,
+            1,
+            /*ldc=*/2, 1, false, false, false);
   EXPECT(C[0] == 58 && C[1] == 64 && C[2] == 139 && C[3] == 154);
   std::cout << "gemm (sub-matrix input, lda > cols): ok\n";
 }
@@ -73,8 +76,8 @@ static void test_gemm_padded_output() {
   std::vector<float> B = {7, 8, 9, 10, 11, 12}; // 3x2
   std::vector<float> C(8, 99.0f);               // 2 rows, ldc = 4
 
-  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, /*ldc=*/4, 1, false,
-       false, false);
+  ops::gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, /*ldc=*/4, 1,
+            false, false, false);
   EXPECT(C[0] == 58 && C[1] == 64 && C[4] == 139 && C[5] == 154);
   EXPECT(C[2] == 99 && C[3] == 99 && C[6] == 99 && C[7] == 99);
   std::cout << "gemm (padded output, ldc > N): ok\n";
@@ -86,14 +89,14 @@ static void test_gemm_reuse_overwrites() {
   std::vector<float> B = {7, 8, 9, 10, 11, 12};
   std::vector<float> C(4, 0.0f);
 
-  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false, false,
-       false);
-  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false, false,
-       false);
+  ops::gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false,
+            false, false);
+  ops::gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false,
+            false, false);
   EXPECT(C[0] == 58 && C[1] == 64 && C[2] == 139 && C[3] == 154);
 
-  gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false, false,
-       true);
+  ops::gemm(A.data(), B.data(), C.data(), 2, 3, 2, 3, 1, 2, 1, 2, 1, false,
+            false, true);
   EXPECT(C[0] == 116 && C[3] == 308); // accumulate doubles it
   std::cout << "gemm (overwrite vs accumulate on reuse): ok\n";
 }

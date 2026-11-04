@@ -1,10 +1,10 @@
-#include "functional/activations.h"
-#include "functional/cross_entropy.h"
-#include "functional/gradcheck.h"
-#include "functional/tensor.h"
+#include "core/tensor.h"
+#include "nn/activations.h"
+#include "ops/cross_entropy.h"
+#include "testing/gradcheck.h"
 #include "tests/tests.h"
 
-#include "tests/expect.h"
+#include "testing/expect.h"
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -13,7 +13,10 @@
 #include <stdexcept>
 #include <vector>
 using namespace tests;
-using namespace functional;
+using namespace nn;
+using namespace core;
+using namespace ops;
+using namespace testing;
 using Targets = std::vector<std::int32_t>;
 
 static const std::int32_t IGN = -100;
