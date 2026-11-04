@@ -4,6 +4,10 @@
 #include <string>
 #include <tests/tests.h>
 
+// TODO: Learn and implement multi-threading
+// TODO: Learn and implement CUDA
+// TODO: Learn and implement cache tiling
+
 namespace {
 
 struct Suite {

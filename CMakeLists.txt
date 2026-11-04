@@ -6,18 +6,34 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(ENABLE_SANITIZERS "Build with ASan + UBSan" ON)
 
-add_library(tensor_lib STATIC src/functional/tensor.cpp)
-add_library(utils_lib STATIC src/utils/utils.cpp)
-add_library(functional_lib STATIC
-  src/functional/activations.cpp
-  src/functional/ops.cpp
-  src/functional/gradcheck.cpp
-  src/functional/module.cpp
-  src/functional/cross_entropy.cpp
-  src/functional/positional_encoding.cpp
+add_library(core_lib STATIC
+  src/core/tensor.cpp
+  src/core/utils
+  src/core/errors.cpp
 )
+
 add_library(model_lib STATIC
-  src/model/model.cpp src/model/decoder.cpp src/model/encoder.cpp)
+ src/model/decoder.cpp
+ src/model/encoder.cpp
+)
+
+add_library(nn_lib STATIC
+ src/nn/activations.cpp
+ src/nn/initialization.cpp
+ src/nn/model.cpp
+ src/nn/module.cpp
+ src/nn/positional_encoding.cpp
+)
+
+add_library(ops_lib STATIC
+  src/ops/cross_entropy.cpp
+  src/ops/ops.cpp
+)
+
+add_library(testing_lib STATIC
+  src/testing/gradcheck.cpp
+)
+
 add_library(test_lib STATIC
   src/tests/test_activations.cpp
   src/tests/test_cross_entropy.cpp
@@ -31,16 +47,16 @@ add_library(test_lib STATIC
   src/tests/test_feedforward.cpp
   src/tests/test_module_contract.cpp
 )
-add_library(error_lib STATIC src/errors/errors.cpp)
 
 # dependencies, bottom to top (no cycles)
-target_link_libraries(utils_lib      PUBLIC tensor_lib error_lib)
-target_link_libraries(functional_lib PUBLIC tensor_lib utils_lib error_lib)
-target_link_libraries(model_lib      PUBLIC functional_lib error_lib)
-target_link_libraries(test_lib       PUBLIC model_lib functional_lib utils_lib tensor_lib error_lib)
+target_link_libraries(ops_lib     PUBLIC core_lib)
+target_link_libraries(nn_lib      PUBLIC ops_lib core_lib)
+target_link_libraries(model_lib   PUBLIC core_lib ops_lib nn_lib)
+target_link_libraries(testing_lib PUBLIC core_lib)
+target_link_libraries(test_lib    PUBLIC core_lib model_lib ops_lib nn_lib testing_lib)
 
 # settings shared by every library
-foreach(lib tensor_lib utils_lib functional_lib model_lib test_lib error_lib)
+foreach(lib core_lib model_lib nn_lib ops_lib testing_lib test_lib)
   target_include_directories(${lib} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_compile_options(${lib} PRIVATE -Wall -Wextra)
   if(ENABLE_SANITIZERS)
