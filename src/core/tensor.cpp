@@ -641,8 +641,6 @@ Tensor Tensor::norm(const float &p, int &axis, bool keepdims) const {
   return new_tensor;
 }
 
-// TODO: IMPLEMENT MASK_FILL and MASK_FILL_RETURN
-
 void Tensor::mask_fill(const Tensor &mask, float value) {
   Tensor broadcasted_mask = mask.broadcast_to(shape_);
 
