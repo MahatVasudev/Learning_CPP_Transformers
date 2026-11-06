@@ -2,6 +2,7 @@
 
 #define ENCODER_TRANSFORMERS_NN
 #include "core/tensor.h"
+#include "nn/layer_norm.h"
 #include "nn/module.h"
 #include "nn/transformers/feedforward.h"
 #include "nn/transformers/multiheadattention.h"
@@ -32,8 +33,10 @@ private:
   size_t heads_;
   FeedForward ff_;
   MultiheadAttention mha_;
+  LayerNorm ln_1, ln_2;
 
-  std::optional<Tensor> mha_output_, d_mha_output, dX_, dSource_;
+  std::optional<Tensor> mha_output_, norm_1_output_, norm_2_output_,
+      d_mha_output_, dX_, dSource_, d_norm_1_output_, d_norm_2_output_;
 
   void ensure_buffers(const Tensor &X);
   void ensure_gradients(const Tensor &X);

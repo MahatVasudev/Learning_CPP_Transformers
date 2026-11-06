@@ -32,6 +32,13 @@ public:
 
   bool training() const { return training_; }
 
+  // TODO: REMAINING TO IMPLEMENT CLEAR_CACHE method on all module child classes
+  // DECODERUNIT
+  // ENCODERUNIT
+  // LayerNorm
+  // ...
+  virtual void clear_cache() {};
+
 protected:
   bool training_ = true;
   static std::vector<Tensor *>

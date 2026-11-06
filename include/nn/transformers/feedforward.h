@@ -14,7 +14,7 @@ public:
   FeedForward(std::size_t d_model, std::size_t d_ff, unsigned seed = 0);
 
   void forward(const Tensor &X, Tensor &Y);
-  void backward(const Tensor &X, const Tensor &Y, Tensor &dX,
+  void backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                 bool accumulate = false);
   std::vector<Tensor *> parameters() override;
 
