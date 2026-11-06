@@ -1,10 +1,10 @@
 #ifndef TEST_EXPECT_H
+
+#include <sstream>
+#include <stdexcept>
 #define TEST_EXPECT_H
 
 #pragma once
-#include <sstream>
-#include <stdexcept>
-
 // Throws instead of exiting, so the runner can report which suite failed.
 #define EXPECT(cond)                                                           \
   do {                                                                         \

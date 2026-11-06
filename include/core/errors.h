@@ -19,6 +19,7 @@ template <typename... Args> std::string make_message(const Args &...args) {
 
   return oss.str();
 }
+
 class ShapeError : public std::invalid_argument {
 
 public:
@@ -53,6 +54,17 @@ private:
 class StateError : public std::logic_error {
 public:
   explicit StateError(const std::string &message);
+};
+
+class OverlapError : public std::logic_error {
+
+public:
+  explicit OverlapError(const std::string &operation,
+                        const std::string &message = "");
+
+private:
+  std::string build_message_(const std::string &opeartion,
+                             const std::string &message = "");
 };
 
 } // namespace core::error

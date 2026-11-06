@@ -1,11 +1,10 @@
 #ifndef TENSOR_FUNCTIONAL_H
 
-#define TENSOR_FUNCTIONAL_H
 #include <cassert>
 #include <initializer_list>
 #include <memory>
-#include <string>
 #include <vector>
+#define TENSOR_FUNCTIONAL_H
 namespace core {
 
 // TODO: Need to add support for multiple data types (only numeric)

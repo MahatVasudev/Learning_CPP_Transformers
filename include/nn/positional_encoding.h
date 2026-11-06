@@ -1,9 +1,8 @@
 #ifndef POSITIONAL_ENCODING_FUNCTIONAL_H
 
-#define POSITIONAL_ENCODING_FUNCTIONAL_H
-
 #include <core/tensor.h>
 #include <cstddef>
+#define POSITIONAL_ENCODING_FUNCTIONAL_H
 
 using core::Tensor;
 namespace nn {

@@ -1,11 +1,10 @@
-#ifndef UTILS_INIT_H
+#ifndef INITIALIZATION_NN_H
 
-#define UTILS_INIT_H
+#define INITIALIZATION_NN_H
 
 #include <core/tensor.h>
-#include <vector>
 
-namespace nn {
+namespace nn::initialize {
 
 enum class InitializeKind {
   Zeros,
@@ -58,8 +57,6 @@ struct Initialize {
 
 void fill_random(core::Tensor &t, const Initialize &init, const unsigned seed);
 
-template <typename T> T iterative_product_vector(std::vector<T> &data);
-
-} // namespace nn
+} // namespace nn::initialize
   //
 #endif // !UTILS_INIT_H

@@ -1,9 +1,8 @@
 #ifndef GRADCHECK_FUNCTIONAL_H
 
-#define GRADCHECK_FUNCTIONAL_H
-
 #include "core/tensor.h"
 #include <functional>
+#define GRADCHECK_FUNCTIONAL_H
 
 namespace testing {
 
