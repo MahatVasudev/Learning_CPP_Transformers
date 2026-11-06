@@ -5,13 +5,12 @@
 #include <nn/initialization.h>
 #include <random>
 #include <stdexcept>
-#include <type_traits>
 
 using core::Tensor;
 
 namespace error = core::error;
 
-namespace nn {
+namespace nn::initialize {
 
 template <typename Dist>
 void fill_dist(Tensor &t, Dist dist, std::mt19937 rng) {
@@ -98,15 +97,4 @@ void fill_random(Tensor &t, const Initialize &init, const unsigned seed) {
   }
 }
 
-template <typename T> T iterative_product_vector(std::vector<T> &data) {
-  assert(std::is_arithmetic_v<T>);
-  T value = static_cast<T>(1);
-
-  for (T v : data) {
-    value *= v;
-  }
-
-  return value;
-}
-
-} // namespace nn
+} // namespace nn::initialize

@@ -40,4 +40,14 @@ ShapeError::build_message_(const std::string &operation,
 StateError::StateError(const std::string &message)
     : std::logic_error("StateError: " + message) {}
 
+OverlapError::OverlapError(const std::string &operation,
+                           const std::string &message)
+    : std::logic_error(build_message_(operation, message)) {}
+
+std::string OverlapError::build_message_(const std::string &operation,
+                                         const std::string &message) {
+  return make_message("Overlap: ", operation,
+                      ": received overlap tensors, cannot perform operation\n",
+                      message);
+}
 } // namespace core::error

@@ -1,59 +1,13 @@
-#include "ops/ops.h"
-#include "core/errors.h"
-#include <cassert>
-#include <cstddef>
-#include <functional>
-#include <vector>
+#include <core/errors.h>
+#include <core/tensor.h>
+#include <ops/matmul.h>
+#include <ops/utils.h>
 
 using core::Tensor;
+
 namespace error = core::error;
 
 namespace ops {
-
-std::size_t batch_offset(std::size_t flat_batch,
-                         const std::vector<std::size_t> &shape,
-                         const std::vector<std::size_t> &strides) {
-
-  const std::size_t batch_rank = shape.size() - 2;
-
-  std::size_t offset = 0;
-
-  for (std::size_t i = batch_rank; i-- > 0;) {
-    const std::size_t index = flat_batch % shape[i];
-    flat_batch /= shape[i];
-
-    offset += index * strides[i];
-  }
-
-  return offset;
-}
-
-// calculate the offset
-std::size_t batch_offset(const std::vector<std::size_t> &batch_index,
-                         const std::size_t &batch_rank,
-                         const std::size_t &input_batch_rank,
-                         const std::vector<std::size_t> &input_shape,
-                         const std::vector<std::size_t> &input_stride) {
-  std::size_t offset = 0;
-
-  // going through each given inputs batch rank
-  for (std::size_t d = 0; d < input_batch_rank; d++) {
-
-    // the current out_dimension to hit
-    // for eg. given output batch_rank of 3 of index (0, 1, 1)
-    // and input batch rank of 2 of input shape (3, 2, 2, 2) and therefore
-    // stride ( 8, 4, 2, 1) current loop of 2 i.e d = 1
-    // then out_dimension would be = 3 - 2 - 1 = 0
-    // the offset = (1  *  8) + (0 * 2) => 8
-    // we skip if input_shape[d] = 1, for broadcasting
-    if (input_shape[d] != 1) {
-      const std::size_t out_d = batch_rank - input_batch_rank + d;
-      offset += batch_index[out_d] * input_stride[d];
-    }
-  }
-
-  return offset;
-}
 
 void matmul(const Tensor &A, const Tensor &B, Tensor &C, bool transpose_a,
             bool transpose_b, bool accumulate) {
@@ -63,7 +17,8 @@ void matmul(const Tensor &A, const Tensor &B, Tensor &C, bool transpose_a,
 Tensor matmul(const Tensor &A, const Tensor &B, bool transpose_a,
               bool transpose_b, bool accumulate) {
 
-  std::vector<std::size_t> shape = matmul_shape(A, B, transpose_a, transpose_b);
+  std::vector<std::size_t> shape =
+      ops::utils::matmul_shape(A, B, transpose_a, transpose_b);
 
   Tensor C(shape);
 
@@ -72,89 +27,57 @@ Tensor matmul(const Tensor &A, const Tensor &B, bool transpose_a,
   return C;
 }
 
-void matmul_backward(const Tensor &A, const Tensor &B, const Tensor &dY,
-                     Tensor &dA, Tensor &dB, bool accumulate) {
-  assert(dA.shape() == A.shape());
-  assert(dB.shape() == B.shape());
-  assert(dY.shape()[0] == A.shape()[0] && dY.shape()[1] == B.shape()[1]);
+// the main matrix multiplication function,
+// is stride aware, and handles transpose of matrix
+void gemm(const float *A, const float *B, float *C, std::size_t M,
+          std::size_t K, std::size_t N, std::size_t a_stride0,
+          std::size_t a_stride1, std::size_t b_stride0, std::size_t b_stride1,
+          std::size_t c_stride0, std::size_t c_stride1, bool transA,
+          bool transB, bool accumulate) {
+  if (M == 0 || N == 0)
+    return;
 
-  matmul(dY, B, dA, false, true, accumulate);
+  assert(A != nullptr && B != nullptr && C != nullptr);
 
-  matmul(A, dY, dB, true, false, accumulate);
-}
+  assert(a_stride0 > 0 && a_stride1 > 0);
+  assert(b_stride0 > 0 && b_stride1 > 0);
+  assert(c_stride0 > 0 && c_stride1 > 0);
 
-bool overlaps(const float *p, std::size_t p_len, const float *q,
-              const std::size_t q_len) {
-  std::less<const float *> lt;
-  return lt(p, q + q_len) && lt(q, p + p_len);
-}
-
-std::vector<std::size_t> matmul_shape(const Tensor &A, const Tensor &B,
-                                      bool transpose_a, bool transpose_b) {
-  return matmul_shape(A.shape(), B.shape(), transpose_a, transpose_b);
-}
-std::vector<std::size_t> matmul_shape(const std::vector<std::size_t> shape_a,
-                                      const std::vector<std::size_t> shape_b,
-                                      bool transpose_a, bool transpose_b) {
-  if (shape_b.empty() || shape_a.empty()) {
-    throw error::ShapeError(
-        "matmul:", "scaler multiplcation is not allowed!", shape_a,
-        error::make_message("B shape: ", error::format_shape(shape_b)));
+  // setting everything to zero, if not accumulate
+  // to remove the previous values if any
+  if (!accumulate) {
+    for (std::size_t i = 0; i < M; ++i) {
+      for (std::size_t j = 0; j < N; ++j) {
+        C[i * c_stride0 + j * c_stride1] = 0.0f;
+      }
+    }
   }
 
-  const std::size_t rank_a = shape_a.size();
-  const std::size_t rank_b = shape_b.size();
+  // the basic matrix multiplication operation
+  // given matrix A with values [[2, 3, 3], [3, 3, 3]]
+  // and matrix B with values [[2, 2], [3, 3], [4, 4]]
+  // therefore the shape of A is (2, 3) with strides (3, 1)
+  // and shape of B is (3, 2) with strides (2, 1)
+  // and resulting shape would be (2, 2) with strides (2, 1)
+  for (std::size_t i = 0; i < M; ++i) {
+    // on 1st iteration of M, i.e i = 0
+    for (std::size_t k = 0; k < K; ++k) {
+      // on 1st iteration of K, i.e k = 0
+      // a becomes A[0 * 3 + 0 * 1] = 2
+      float a = transA ? A[k * a_stride0 + i * a_stride1]
+                       : A[i * a_stride0 + k * a_stride1];
 
-  const bool a_vector = rank_a == 1;
-  const bool b_vector = rank_b == 1;
+      for (std::size_t j = 0; j < N; ++j) {
+        // on first iteration of N, i.e. j = 0
+        // b becomes B[0 * 2 + 0 * 1] = 2
+        float b = transB ? B[j * b_stride0 + k * b_stride1]
+                         : B[k * b_stride0 + j * b_stride1];
 
-  std::vector<std::size_t> a = shape_a;
-  std::vector<std::size_t> b = shape_b;
-
-  if (a_vector) {
-    // {1, a}
-    a.insert(a.begin(), static_cast<std::size_t>(1));
+        // storing c[0] += 2 * 2
+        C[i * c_stride0 + j * c_stride1] += a * b;
+      }
+    }
   }
-
-  if (b_vector) {
-    // {b, 1}
-    b.push_back(1);
-  }
-
-  const std::size_t effective_rank_a = a.size();
-  const std::size_t effective_rank_b = b.size();
-
-  const std::size_t M = transpose_a ? a.back() : a[effective_rank_a - 2];
-  const std::size_t k_a = transpose_a ? a[effective_rank_a - 2] : a.back();
-  const std::size_t k_b = transpose_b ? b.back() : b[effective_rank_b - 2];
-  const std::size_t N = transpose_b ? b[effective_rank_b - 2] : b.back();
-
-  if (k_a != k_b) {
-    throw error::ShapeError(
-        "matmul",
-        "A and B tensors have incompatible shapes for matrix multiplication",
-        shape_a,
-        error::make_message("found B shape: ", error::format_shape(shape_b)));
-  }
-
-  std::vector<std::size_t> batch_a(a.begin(), a.end() - 2);
-  std::vector<std::size_t> batch_b(b.begin(), b.end() - 2);
-
-  std::vector<std::size_t> batch_out =
-      Tensor::broadcast_shape(batch_a, batch_b);
-
-  batch_out.push_back(M);
-  batch_out.push_back(N);
-
-  if (a_vector) {
-    batch_out.erase(batch_out.end() - 2);
-  }
-
-  if (b_vector) {
-    batch_out.pop_back();
-  }
-
-  return batch_out;
 }
 
 void matmul_batched(const Tensor &A, const Tensor &B, Tensor &C,
@@ -189,7 +112,7 @@ void matmul_batched(const Tensor &A, const Tensor &B, Tensor &C,
 
   // calculate the final shape after the matmul of A and B
   std::vector<std::size_t> final_size =
-      matmul_shape(a_shape, b_shape, transpose_a, transpose_b);
+      utils::matmul_shape(a_shape, b_shape, transpose_a, transpose_b);
 
   // std::cerr << "A: " << error::format_shape(A.shape())
   //           << "\nB: " << error::format_shape(B.shape())
@@ -267,10 +190,10 @@ void matmul_batched(const Tensor &A, const Tensor &B, Tensor &C,
     // matrix multiplication from A and B, this offset represents which 2
     // dimensional data to choose for multiplication given the current index of
     // batch we are in.
-    std::size_t a_offset =
-        batch_offset(batch_index, batch_rank, a_batch_rank, a_shape, a_stride);
-    std::size_t b_offset =
-        batch_offset(batch_index, batch_rank, b_batch_rank, b_shape, b_stride);
+    std::size_t a_offset = utils::batch_offset(batch_index, batch_rank,
+                                               a_batch_rank, a_shape, a_stride);
+    std::size_t b_offset = utils::batch_offset(batch_index, batch_rank,
+                                               b_batch_rank, b_shape, b_stride);
 
     // which output 2 dimensional matrix to save output of A and B
     // multiplication
@@ -367,57 +290,15 @@ void bmm(const Tensor &A, const Tensor &B, Tensor &C) {
   }
 }
 
-// the main matrix multiplication function,
-// is stride aware, and handles transpose of matrix
-void gemm(const float *A, const float *B, float *C, std::size_t M,
-          std::size_t K, std::size_t N, std::size_t a_stride0,
-          std::size_t a_stride1, std::size_t b_stride0, std::size_t b_stride1,
-          std::size_t c_stride0, std::size_t c_stride1, bool transA,
-          bool transB, bool accumulate) {
-  if (M == 0 || N == 0)
-    return;
+void matmul_backward(const Tensor &A, const Tensor &B, const Tensor &dY,
+                     Tensor &dA, Tensor &dB, bool accumulate) {
+  assert(dA.shape() == A.shape());
+  assert(dB.shape() == B.shape());
+  assert(dY.shape()[0] == A.shape()[0] && dY.shape()[1] == B.shape()[1]);
 
-  assert(A != nullptr && B != nullptr && C != nullptr);
+  matmul(dY, B, dA, false, true, accumulate);
 
-  assert(a_stride0 > 0 && a_stride1 > 0);
-  assert(b_stride0 > 0 && b_stride1 > 0);
-  assert(c_stride0 > 0 && c_stride1 > 0);
-
-  // setting everything to zero, if not accumulate
-  // to remove the previous values if any
-  if (!accumulate) {
-    for (std::size_t i = 0; i < M; ++i) {
-      for (std::size_t j = 0; j < N; ++j) {
-        C[i * c_stride0 + j * c_stride1] = 0.0f;
-      }
-    }
-  }
-
-  // the basic matrix multiplication operation
-  // given matrix A with values [[2, 3, 3], [3, 3, 3]]
-  // and matrix B with values [[2, 2], [3, 3], [4, 4]]
-  // therefore the shape of A is (2, 3) with strides (3, 1)
-  // and shape of B is (3, 2) with strides (2, 1)
-  // and resulting shape would be (2, 2) with strides (2, 1)
-  for (std::size_t i = 0; i < M; ++i) {
-    // on 1st iteration of M, i.e i = 0
-    for (std::size_t k = 0; k < K; ++k) {
-      // on 1st iteration of K, i.e k = 0
-      // a becomes A[0 * 3 + 0 * 1] = 2
-      float a = transA ? A[k * a_stride0 + i * a_stride1]
-                       : A[i * a_stride0 + k * a_stride1];
-
-      for (std::size_t j = 0; j < N; ++j) {
-        // on first iteration of N, i.e. j = 0
-        // b becomes B[0 * 2 + 0 * 1] = 2
-        float b = transB ? B[j * b_stride0 + k * b_stride1]
-                         : B[k * b_stride0 + j * b_stride1];
-
-        // storing c[0] += 2 * 2
-        C[i * c_stride0 + j * c_stride1] += a * b;
-      }
-    }
-  }
+  matmul(A, dY, dB, true, false, accumulate);
 }
 
 } // namespace ops

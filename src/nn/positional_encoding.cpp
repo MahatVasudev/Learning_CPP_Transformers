@@ -4,18 +4,11 @@
 #include <core/tensor.h>
 #include <cstddef>
 #include <nn/positional_encoding.h>
-#include <stdexcept>
+#include <nn/utils.h>
 
 using core::Tensor;
 
 namespace error = core::error;
-double angle(std::size_t pos, std::size_t i, std::size_t d_model) {
-
-  const double exponent =
-      2.0 * static_cast<double>(i / 2) / static_cast<double>(d_model);
-
-  return static_cast<double>(pos) / std::pow(10000.0, exponent);
-}
 
 namespace nn {
 
@@ -79,13 +72,13 @@ void PositionalEncodingSinusoidal::build_table_() {
 
 float PositionalEncodingSinusoidal::sine_value_(const std::size_t pos,
                                                 const std::size_t i) const {
-  return static_cast<float>(std::sin(angle(pos, i, d_model_)));
+  return static_cast<float>(std::sin(utils::angle(pos, i, d_model_)));
 }
 
 float PositionalEncodingSinusoidal::cosine_value_(const std::size_t pos,
                                                   const std::size_t i) const {
 
-  return static_cast<float>(std::cos(angle(pos, i, d_model_)));
+  return static_cast<float>(std::cos(utils::angle(pos, i, d_model_)));
 }
 
 } // namespace nn
