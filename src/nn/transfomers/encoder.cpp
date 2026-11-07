@@ -1,6 +1,7 @@
 
 #include "core/errors.h"
 #include "core/tensor.h"
+#include "core/utils.h"
 #include "nn/module.h"
 #include "nn/utils.h"
 #include <nn/transformers/encoders.h>
@@ -34,7 +35,7 @@ void EncoderUnit::set_training(bool state) {
   nn::Module::set_training_all({&ff_, &mha_}, state);
 
   if (!state) {
-    d_mha_output.reset();
+    d_mha_output_.reset();
     dX_.reset();
     dSource_.reset();
   }
@@ -43,7 +44,7 @@ void EncoderUnit::set_training(bool state) {
 // A single EncoderUnit forward
 // uses PreNormalization i.e
 // X + Sublayer(LayerNorm(X))
-void EncoderUnit::forward(const Tensor &X, Tensor &Y) {
+void EncoderUnit::forward(const Tensor &X, Tensor &Y, const Tensor *mask) {
   const size_t &rank_ = X.rank();
 
   const std::vector<size_t> &x_shape = X.shape();
@@ -72,7 +73,7 @@ void EncoderUnit::forward(const Tensor &X, Tensor &Y) {
   ensure_buffers(X);
 
   ln_1.forward(X, *norm_1_output_);
-  mha_.forward(*norm_1_output_, *mha_output_);
+  mha_.forward(*norm_1_output_, *mha_output_, mask);
 
   mha_output_->add(X);
 
@@ -116,12 +117,117 @@ void EncoderUnit::ensure_buffers(const Tensor &X) {
 }
 
 void EncoderUnit::ensure_gradients(const Tensor &X) {
-  utils::ensure(d_mha_output, X.shape());
+  utils::ensure(d_mha_output_, X.shape());
   utils::ensure(dX_, X.shape());
   utils::ensure(dSource_, X.shape());
   utils::ensure(d_norm_2_output_, X.shape());
   utils::ensure(d_norm_1_output_, X.shape());
   // utils::ensure(dff_output_, X.shape());
+}
+
+// IMPLEMENTING ENCODER LAYER
+
+EncoderLayer::EncoderLayer(size_t num_layers, size_t d_model, size_t d_ff,
+                           size_t heads, size_t seed)
+    : num_encoders_(num_layers), d_model_(d_model), d_ff_(d_ff), heads_(heads),
+      seed_(seed) {
+  for (size_t i = 0; i < num_encoders_; i++) {
+    encoders_.insert(encoders_.begin() + i,
+                     EncoderUnit(d_model_, d_ff_, heads_, seed + i + 1));
+  }
+
+  for (size_t i = 0; i < num_encoders_; i++) {
+    module_ptrs_.insert(module_ptrs_.begin() + i, &encoders_[i]);
+  }
+}
+
+std::vector<Tensor *> EncoderLayer::parameters() {
+  return concat_parameters(module_ptrs_);
+}
+
+std::vector<Tensor *> EncoderLayer::gradients() {
+
+  return concat_gradients(module_ptrs_);
+}
+
+void EncoderLayer::set_training(bool state) {
+  Module::set_training(state);
+  Module::set_training_all(module_ptrs_, state);
+}
+
+void EncoderLayer::ensure_buffers(const Tensor &X) {
+  // PERF: ACTIVATION RE-Initiates work every time, need to optimize
+  if (num_encoders_ == 0) {
+    return;
+  }
+
+  activations_.reserve(num_encoders_ - 1);
+  for (size_t i = 0; i < num_encoders_; i++) {
+    activations_[i] = Tensor(X.shape());
+    activations_[i].fill(0.0f);
+  }
+}
+
+void EncoderLayer::ensure_gradients(const Tensor &X) {
+  utils::ensure(grad_a_, X.shape());
+  utils::ensure(grad_b_, X.shape());
+}
+
+void EncoderLayer::forward(const Tensor &X, Tensor &Y, const Tensor *mask) {
+  core::utils::require_nonoverlap(X, Y, "EncoderLayer::forward", "X", "Y");
+  ensure_buffers(X);
+  if (num_encoders_ == 0) {
+    Y = X;
+    return;
+  }
+
+  const Tensor *input = &X;
+  for (size_t i = 0; i < num_encoders_; i++) {
+    Tensor *output = (i == num_encoders_ - 1) ? &Y : &activations_[i];
+
+    encoders_[i].forward(*input, *output, mask);
+
+    input = output;
+  }
+}
+
+void EncoderLayer::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
+                            bool accumulate) {
+  Module::require_training("EncoderLayer::backward");
+  core::utils::require_nonoverlap(X, dX, "Encoder::backward", "X", "dX");
+  core::utils::require_nonoverlap(dY, dX, "Encoder::backward", "dY", "dX");
+
+  if (num_encoders_ == 0) {
+    if (accumulate) {
+      dX.add(dY);
+    } else {
+      dX = dY;
+    }
+    return;
+  }
+
+  if (activations_.empty() || activations_.size() != num_encoders_ - 1 ||
+      activations_[0].shape() != X.shape()) {
+    throw error::StateError("EncoderLayer::backward: run forward() first");
+  }
+
+  const Tensor *current_grad = &dY;
+  for (size_t i = num_encoders_; i-- > 0;) {
+    const Tensor &input = (i == 0) ? X : this->activations_[i - 1];
+
+    Tensor *next_grad;
+
+    if (i == 0) {
+      next_grad = &dX;
+    } else {
+      next_grad = (i % 2 == 0) ? &*grad_a_ : &*grad_b_;
+    }
+
+    encoders_[i].backward(input, *current_grad, *next_grad,
+                          i == 0 ? accumulate : false);
+
+    current_grad = next_grad;
+  }
 }
 
 } // namespace nn::transformers

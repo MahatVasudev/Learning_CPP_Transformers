@@ -43,6 +43,7 @@ private:
   void ensure_gradients(const Tensor &X);
 };
 
+// TODO: Define the decoder layer and implement
 class DecoderLayer;
 
 } // namespace nn::transformers

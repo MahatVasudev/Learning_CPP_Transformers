@@ -6,6 +6,7 @@
 #include "nn/module.h"
 #include "nn/transformers/feedforward.h"
 #include "nn/transformers/multiheadattention.h"
+#include <cstddef>
 #include <optional>
 
 using core::Tensor;
@@ -15,9 +16,10 @@ using std::size_t;
 namespace nn::transformers {
 
 class EncoderUnit final : public Module {
+public:
   EncoderUnit(size_t d_model, size_t d_ff, size_t heads_, size_t seed);
 
-  void forward(const Tensor &X, Tensor &Y);
+  void forward(const Tensor &X, Tensor &Y, const Tensor *mask = nullptr);
 
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX, bool accumulate);
 
@@ -42,7 +44,52 @@ private:
   void ensure_gradients(const Tensor &X);
 };
 
-class EncoderLayer final : public Module {};
+class EncoderLayer final : public Module {
+
+public:
+  // TODO: input_buffers are not publicly available, create a get method that
+  // would return the tensor;
+  //
+
+  EncoderLayer(size_t num_layers, size_t d_model, size_t d_ff, size_t heads,
+               size_t seed);
+
+  std::vector<Tensor *> parameters() override;
+  std::vector<Tensor *> gradients() override;
+  void set_training(bool state) override;
+
+  // NOTE: runs the entire num_encoders and in the end you can get input_buffers
+  // as the entire results, or Y as our final result;
+  void forward(const Tensor &X, Tensor &Y, const Tensor *mask);
+
+  // NOTE: Returns one by one run of each num_encoders; useful for assigning
+  // each encode output for each decoder input;
+  void forward_gen(const Tensor &X, Tensor &Y, const Tensor *mask);
+
+  void backward(const Tensor &X, const Tensor &dY, Tensor &dX,
+                bool accumulate = false);
+
+private:
+  size_t num_encoders_;
+  size_t d_model_;
+  size_t d_ff_;
+  size_t heads_;
+  size_t seed_;
+
+  std::vector<EncoderUnit> encoders_;
+
+  // contains size of num_encoders - 1
+  std::vector<Tensor> activations_;
+  // contains size of num_encoders - 1
+  std::optional<Tensor> grad_a_;
+  std::optional<Tensor> grad_b_;
+  std::vector<Module *> module_ptrs_;
+
+  // void _regenerate_module_ptrs();
+
+  void ensure_buffers(const Tensor &X);
+  void ensure_gradients(const Tensor &X);
+};
 
 } // namespace nn::transformers
 

@@ -131,4 +131,7 @@ void DecoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   }
 }
 
+// TODO: Define the decoder layer and implement
+
 } // namespace nn::transformers
+  //
