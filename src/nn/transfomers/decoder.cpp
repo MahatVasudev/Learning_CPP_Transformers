@@ -1,3 +1,4 @@
+#include "core/utils.h"
 #include "nn/module.h"
 #include <core/errors.h>
 #include <core/tensor.h>
@@ -132,6 +133,80 @@ void DecoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
 }
 
 // TODO: Define the decoder layer and implement
+DecoderLayer::DecoderLayer(size_t num_decoders, size_t d_model, size_t d_ff,
+                           size_t heads, size_t seed)
+    : num_decoders_(num_decoders), d_model_(d_model), d_ff_(d_ff),
+      heads_(heads) {
+  for (size_t i = 0; i < num_decoders_; i++) {
+    decoders_.insert(decoders_.begin() + i,
+                     DecoderUnit(d_model_, d_ff_, heads_, seed + i));
+    module_ptrs.insert(module_ptrs.begin() + i, &decoders_[i]);
+  }
+}
+
+std::vector<Tensor *> DecoderLayer::parameters() {
+  return concat_parameters(module_ptrs);
+}
+
+std::vector<Tensor *> DecoderLayer::gradients() {
+  return concat_gradients(module_ptrs);
+}
+
+void DecoderLayer::ensure_buffers(const Tensor &X) {
+  if (num_decoders_ == 0) {
+    return;
+  }
+
+  activations_.reserve(num_decoders_ - 1);
+  for (size_t i = 0; i < num_decoders_ - 1; i++) {
+    if (i >= activations_.size()) {
+      activations_.emplace_back(X.shape());
+    } else if (activations_[i].shape() != X.shape()) {
+      activations_[i] = Tensor(X.shape());
+    }
+  }
+
+  activations_.resize(num_decoders_ - 1);
+}
+
+void DecoderLayer::ensure_gradients(const Tensor &X) {}
+
+void DecoderLayer::forward(const Tensor &X, Tensor &Y, const Tensor *context,
+                           const Tensor *mask) {
+  core::utils::require_nonoverlap(X, Y, "DecoderLayer::forward", "X", "Y");
+  ensure_buffers(X);
+
+  const Tensor *input = &X;
+  for (std::size_t i = 0; i + 1 < num_decoders_; i++) {
+    Tensor *output = &activations_[i];
+    decoders_[i].forward(*input, *output, mask);
+
+    input = output;
+  }
+
+  decoders_.back().forward(*input, Y, mask, context);
+}
+
+void DecoderLayer::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
+                            bool accumulate) {
+
+  Tensor *current_grad = &*grad_a_;
+  const Tensor &final_input =
+      num_decoders_ == 1 ? X : activations_[num_decoders_ - 2];
+
+  decoders_.back().backward(final_input, dY, *current_grad, false);
+  for (std::size_t i = num_decoders_ - 1; i-- > 0;) {
+    const Tensor &input = (i == 0) ? X : activations_[i - 1];
+
+    Tensor *next_grad = (current_grad == &*grad_a_) ? &*grad_b_ : &*grad_a_;
+
+    decoders_[i].backward(input, *current_grad, *next_grad, false);
+  }
+
+  if (accumulate)
+    dX.add(*current_grad);
+  else
+    dX = *current_grad;
+}
 
 } // namespace nn::transformers
-  //

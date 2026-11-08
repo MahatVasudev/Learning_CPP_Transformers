@@ -44,7 +44,41 @@ private:
 };
 
 // TODO: Define the decoder layer and implement
-class DecoderLayer;
+class DecoderLayer final : public Module {
+
+public:
+  DecoderLayer(size_t num_decoders, size_t d_model, size_t d_ff, size_t heads,
+               size_t seed = 0);
+
+  std::vector<Tensor *> parameters() override;
+  std::vector<Tensor *> gradients() override;
+
+  void forward(const Tensor &X, Tensor &Y, const Tensor *context = nullptr,
+               const Tensor *mask = nullptr);
+
+  void backward(const Tensor &X, const Tensor &dY, Tensor &dX,
+                bool accomulate = false);
+
+  void set_training(bool mode) override;
+
+private:
+  size_t num_decoders_;
+  size_t d_model_;
+  size_t d_ff_;
+  size_t heads_;
+  size_t seed;
+
+  std::vector<Tensor> activations_;
+
+  std::vector<DecoderUnit> decoders_;
+
+  std::vector<Module *> module_ptrs;
+
+  std::optional<Tensor> grad_a_;
+  std::optional<Tensor> grad_b_;
+  void ensure_buffers(const Tensor &X);
+  void ensure_gradients(const Tensor &X);
+};
 
 } // namespace nn::transformers
 
