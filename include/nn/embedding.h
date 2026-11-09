@@ -1,3 +1,4 @@
+#include "core/random.h"
 #ifndef EMBEDDING_NN_H
 
 #include <core/tensor.h>
@@ -12,8 +13,9 @@ namespace nn {
 
 class Embedding final : public Module {
 public:
-  Embedding(std::size_t vocab_size, std::size_t d_model, unsigned seed = 0,
-            std::optional<std::size_t> padding_idx = std::nullopt);
+  Embedding(std::size_t vocab_size, std::size_t d_model,
+            std::optional<std::size_t> padding_idx = std::nullopt,
+            core::random::Generator *generator = nullptr);
   std::vector<Tensor *> parameters() override;
   std::vector<Tensor *> gradients() override;
 

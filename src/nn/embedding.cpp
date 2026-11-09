@@ -1,3 +1,4 @@
+#include "core/random.h"
 #include <core/errors.h>
 #include <core/tensor.h>
 #include <core/utils.h>
@@ -10,8 +11,9 @@ namespace error = core::error;
 
 namespace nn {
 
-Embedding::Embedding(std::size_t vocab_size, std::size_t d_model, unsigned seed,
-                     std::optional<std::size_t> padding_idx)
+Embedding::Embedding(std::size_t vocab_size, std::size_t d_model,
+                     std::optional<std::size_t> padding_idx,
+                     core::random::Generator *generator)
     : vocab_size_(vocab_size), d_model_(d_model), padding_idx_(padding_idx),
       Emb_({vocab_size, d_model}) {
   assert(vocab_size > 0 && d_model > 0);
@@ -21,8 +23,12 @@ Embedding::Embedding(std::size_t vocab_size, std::size_t d_model, unsigned seed,
         error::make_message("padding_idx cannot be greater than ", vocab_size_,
                             " (vocab_size)"));
   }
+
+  core::random::Generator &gen =
+      (generator == nullptr) ? core::random::global_rng() : *generator;
+
   initialize::fill_random(Emb_, initialize::Initialize::normal(0.0f, 1.0f),
-                          seed);
+                          gen);
 
   if (padding_idx_) {
     float *row = Emb_.data() + *padding_idx_ * d_model_;

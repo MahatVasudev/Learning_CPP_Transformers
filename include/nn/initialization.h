@@ -2,7 +2,9 @@
 
 #define INITIALIZATION_NN_H
 
+#include "core/random.h"
 #include <core/tensor.h>
+#include <random>
 
 namespace nn::initialize {
 
@@ -55,7 +57,8 @@ struct Initialize {
   }
 };
 
-void fill_random(core::Tensor &t, const Initialize &init, const unsigned seed);
+void fill_random(core::Tensor &t, const Initialize &init,
+                 core::random::Generator &gen);
 
 } // namespace nn::initialize
   //

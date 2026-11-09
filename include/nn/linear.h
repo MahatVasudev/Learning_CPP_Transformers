@@ -2,15 +2,19 @@
 
 #define LINEAR_NN
 
+#include <core/random.h>
+#include <core/tensor.h>
 #include <nn/module.h>
 #include <optional>
+
+using core::Tensor;
 
 namespace nn {
 
 class Linear final : public Module {
 public:
   Linear(std::size_t in_features, std::size_t out_features, bool bias = true,
-         unsigned seed = 0);
+         core::random::Generator *generator = nullptr);
 
   void forward(const Tensor &X, Tensor &Y) const;
 

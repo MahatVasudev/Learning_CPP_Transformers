@@ -1,3 +1,4 @@
+#include "core/random.h"
 #include <core/errors.h>
 #include <core/tensor.h>
 #include <core/utils.h>
@@ -15,11 +16,13 @@ namespace error = core::error;
 namespace nn {
 
 Linear::Linear(std::size_t in_features, std::size_t out_features, bool bias,
-               unsigned seed)
+               core::random::Generator *generator)
     : in_(in_features), out_(out_features), bias_(bias),
       W_(Tensor({out_features, in_features})), B_(Tensor({out_features})) {
   assert(in_features > 0 && out_features > 0);
-  fill_random(W_, Initialize::xavier_uniform(), seed);
+  core::random::Generator &gen =
+      (generator == nullptr) ? core::random::global_rng() : *generator;
+  fill_random(W_, Initialize::xavier_uniform(), gen);
 }
 
 void Linear::set_training(bool state) {
