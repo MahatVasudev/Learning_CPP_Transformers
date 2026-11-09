@@ -1,3 +1,4 @@
+#include "core/random.h"
 #include <core/errors.h>
 #include <core/tensor.h>
 #include <core/utils.h>
@@ -11,9 +12,11 @@ namespace nn::transformers {
 
 // FeedForward Implementation -------------------------------
 
-FeedForward::FeedForward(std::size_t d_model, std::size_t d_ff, unsigned seed)
-    : d_model_(d_model), d_ff_(d_ff), l1_(Linear(d_model, d_ff, true, seed)),
-      l2_(Linear(d_ff, d_model, true, seed + 1)), relu_() {}
+FeedForward::FeedForward(std::size_t d_model, std::size_t d_ff,
+                         core::random::Generator *generator)
+    : d_model_(d_model), d_ff_(d_ff),
+      l1_(Linear(d_model, d_ff, true, generator)),
+      l2_(Linear(d_ff, d_model, true, generator)), relu_() {}
 
 void FeedForward::set_training(bool state) {
   Module::set_training(state);

@@ -1,5 +1,6 @@
 
 #include "core/errors.h"
+#include "core/random.h"
 #include "core/tensor.h"
 #include "core/utils.h"
 #include "nn/module.h"
@@ -17,9 +18,10 @@ using std::size_t;
 
 namespace nn::transformers {
 
-EncoderUnit::EncoderUnit(size_t d_model, size_t d_ff, size_t heads, size_t seed)
+EncoderUnit::EncoderUnit(size_t d_model, size_t d_ff, size_t heads,
+                         core::random::Generator *generator)
     : d_model_(d_model), d_ff_(d_ff), heads_(heads),
-      ff_(d_model_, d_ff_, seed + 1), mha_(d_model_, heads_, false),
+      ff_(d_model_, d_ff_, generator), mha_(d_model_, heads_, false, generator),
       ln_1(d_model), ln_2(d_model) {}
 
 std::vector<Tensor *> EncoderUnit::parameters() {
@@ -128,12 +130,11 @@ void EncoderUnit::ensure_gradients(const Tensor &X) {
 // IMPLEMENTING ENCODER LAYER
 
 EncoderLayer::EncoderLayer(size_t num_layers, size_t d_model, size_t d_ff,
-                           size_t heads, size_t seed)
-    : num_encoders_(num_layers), d_model_(d_model), d_ff_(d_ff), heads_(heads),
-      seed_(seed) {
+                           size_t heads, core::random::Generator *generator)
+    : num_encoders_(num_layers), d_model_(d_model), d_ff_(d_ff), heads_(heads) {
   for (size_t i = 0; i < num_encoders_; i++) {
     encoders_.insert(encoders_.begin() + i,
-                     EncoderUnit(d_model_, d_ff_, heads_, seed + i + 1));
+                     EncoderUnit(d_model_, d_ff_, heads_, generator));
   }
 
   for (size_t i = 0; i < num_encoders_; i++) {
@@ -156,16 +157,20 @@ void EncoderLayer::set_training(bool state) {
 }
 
 void EncoderLayer::ensure_buffers(const Tensor &X) {
-  // PERF: ACTIVATION RE-Initiates work every time, need to optimize
   if (num_encoders_ == 0) {
     return;
   }
 
   activations_.reserve(num_encoders_ - 1);
-  for (size_t i = 0; i < num_encoders_; i++) {
-    activations_[i] = Tensor(X.shape());
-    activations_[i].fill(0.0f);
+  for (size_t i = 0; i < num_encoders_ - 1; i++) {
+    if (i >= activations_.size()) {
+      activations_.emplace_back(X.shape());
+    } else if (activations_[i].shape() != X.shape()) {
+      activations_[i] = Tensor(X.shape());
+    }
   }
+
+  // activations_.resize(num_encoders_ - 1);
 }
 
 void EncoderLayer::ensure_gradients(const Tensor &X) {

@@ -1,3 +1,4 @@
+#include "core/random.h"
 #include "core/utils.h"
 #include "nn/module.h"
 #include <core/errors.h>
@@ -8,12 +9,15 @@
 
 using std::size_t;
 namespace error = core::error;
+namespace core_utils = core::utils;
 namespace nn::transformers {
 
-DecoderUnit::DecoderUnit(size_t d_model, size_t d_ff, size_t heads, size_t seed)
+DecoderUnit::DecoderUnit(size_t d_model, size_t d_ff, size_t heads,
+                         core::random::Generator *generator)
     : d_model_(d_model), d_ff_(d_ff), heads_(heads),
-      ff_(d_model, d_ff, seed + 1), ln_1(d_model), ln_2(d_model), ln_3(d_model),
-      mha_self(d_model, heads, true), mha_cross(d_model, heads, false) {}
+      ff_(d_model, d_ff, generator), ln_1(d_model), ln_2(d_model),
+      ln_3(d_model), mha_self(d_model, heads, true, generator),
+      mha_cross(d_model, heads, false, generator) {}
 
 void DecoderUnit::set_training(bool state) {
   nn::Module::set_training(state);
@@ -98,7 +102,7 @@ void DecoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
 
   require_training("DecoderUnit::backward");
   if (!source_ || source_->shape() != X.shape()) {
-    // TODO: Throw error regarding running training first
+    error::StateError("DecoderUnit::backward: run forward() first");
   }
   ensure_gradients(X);
 
@@ -132,14 +136,13 @@ void DecoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   }
 }
 
-// TODO: Define the decoder layer and implement
 DecoderLayer::DecoderLayer(size_t num_decoders, size_t d_model, size_t d_ff,
-                           size_t heads, size_t seed)
+                           size_t heads, core::random::Generator *generator)
     : num_decoders_(num_decoders), d_model_(d_model), d_ff_(d_ff),
       heads_(heads) {
   for (size_t i = 0; i < num_decoders_; i++) {
     decoders_.insert(decoders_.begin() + i,
-                     DecoderUnit(d_model_, d_ff_, heads_, seed + i));
+                     DecoderUnit(d_model_, d_ff_, heads_, generator));
     module_ptrs.insert(module_ptrs.begin() + i, &decoders_[i]);
   }
 }
@@ -166,10 +169,13 @@ void DecoderLayer::ensure_buffers(const Tensor &X) {
     }
   }
 
-  activations_.resize(num_decoders_ - 1);
+  // activations_.resize(num_decoders_ - 1);
 }
 
-void DecoderLayer::ensure_gradients(const Tensor &X) {}
+void DecoderLayer::ensure_gradients(const Tensor &X) {
+  utils::ensure(grad_a_, X.shape());
+  utils::ensure(grad_b_, X.shape());
+}
 
 void DecoderLayer::forward(const Tensor &X, Tensor &Y, const Tensor *context,
                            const Tensor *mask) {
@@ -189,6 +195,10 @@ void DecoderLayer::forward(const Tensor &X, Tensor &Y, const Tensor *context,
 
 void DecoderLayer::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                             bool accumulate) {
+
+  require_training("DecoderLayer::backward");
+  core_utils::require_nonoverlap(X, dX, "DecoderLayer::backward", "X", "dX");
+  core_utils::require_nonoverlap(dY, dX, "DecoderLayer::backward", "dY", "dX");
 
   Tensor *current_grad = &*grad_a_;
   const Tensor &final_input =

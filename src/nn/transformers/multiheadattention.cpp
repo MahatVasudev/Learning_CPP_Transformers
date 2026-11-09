@@ -1,3 +1,4 @@
+#include "core/random.h"
 #include "ops/matmul.h"
 #include <cmath>
 #include <core/errors.h>
@@ -16,11 +17,13 @@ namespace error = core::error;
 namespace nn::transformers {
 
 MultiheadAttention::MultiheadAttention(std::size_t in_dims, std::size_t heads,
-                                       bool is_causal)
+                                       bool is_causal,
+                                       core::random::Generator *generator)
     : in_dims_(in_dims), heads_(heads), head_dims_(heads ? in_dims / heads : 0),
-      is_causal_(is_causal), query_(in_dims, in_dims, false, 1),
-      key_(in_dims, in_dims, false, 2), value_(in_dims, in_dims, false, 3),
-      output_(in_dims, in_dims, true, 4) {
+      is_causal_(is_causal), query_(in_dims, in_dims, false, generator),
+      key_(in_dims, in_dims, false, generator),
+      value_(in_dims, in_dims, false, generator),
+      output_(in_dims, in_dims, true, generator) {
 
   if (heads_ == 0 || in_dims_ % heads_ != 0) {
     throw error::ShapeError("MultiheadAttention",
@@ -277,7 +280,6 @@ Tensor MultiheadAttention::create_causal_mask(std::size_t query_length,
                                               std::size_t query_offset) {
 
   if (query_length == 0 || key_length == 0 || query_offset >= key_length) {
-    // TODO: throw error for offset cannot be greater than length
     throw error::StateError(error::make_message(
         "MultiheadAttention::create_causal_mask: Got Invalid Configuration of "
         "query_length, key_length, query_offset; query_length, key_length > 0 "
