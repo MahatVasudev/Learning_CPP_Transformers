@@ -8,6 +8,7 @@
 // TODO: Learn and implement CUDA
 // TODO: Learn and implement cache tiling
 
+// TODO: CORRECT TEST with the new implementations
 namespace {
 
 struct Suite {

@@ -2,6 +2,7 @@
 
 #define MULTIHEADATTENTION_TRANSFORMERS_NN_H
 
+#include "core/random.h"
 #include "nn/activations/softmax.h"
 #include <nn/linear.h>
 #include <nn/module.h>
@@ -10,7 +11,8 @@ namespace nn::transformers {
 class MultiheadAttention final : public Module {
 public:
   MultiheadAttention(std::size_t in_dims, std::size_t heads,
-                     bool is_causal = false);
+                     bool is_causal = false,
+                     core::random::Generator *generator = nullptr);
 
   void forward(const Tensor &X, Tensor &Y, const Tensor *context = nullptr,
                const Tensor *mask = nullptr);

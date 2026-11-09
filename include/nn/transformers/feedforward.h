@@ -11,7 +11,8 @@ namespace nn::transformers {
 class FeedForward final : public Module {
 
 public:
-  FeedForward(std::size_t d_model, std::size_t d_ff, unsigned seed = 0);
+  FeedForward(std::size_t d_model, std::size_t d_ff,
+              core::random::Generator *generator = nullptr);
 
   void forward(const Tensor &X, Tensor &Y);
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX,

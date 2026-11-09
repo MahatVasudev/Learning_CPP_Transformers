@@ -17,7 +17,8 @@ namespace nn::transformers {
 
 class EncoderUnit final : public Module {
 public:
-  EncoderUnit(size_t d_model, size_t d_ff, size_t heads_, size_t seed);
+  EncoderUnit(size_t d_model, size_t d_ff, size_t heads_,
+              core::random::Generator *gen = nullptr);
 
   void forward(const Tensor &X, Tensor &Y, const Tensor *mask = nullptr);
 
@@ -47,12 +48,9 @@ private:
 class EncoderLayer final : public Module {
 
 public:
-  // TODO: input_buffers are not publicly available, create a get method that
-  // would return the tensor;
-  //
-
   EncoderLayer(size_t num_layers, size_t d_model, size_t d_ff, size_t heads,
-               size_t seed);
+               core::random::Generator *gen = nullptr);
+  std::vector<Tensor> const &activations() const { return activations_; };
 
   std::vector<Tensor *> parameters() override;
   std::vector<Tensor *> gradients() override;
@@ -74,7 +72,6 @@ private:
   size_t d_model_;
   size_t d_ff_;
   size_t heads_;
-  size_t seed_;
 
   std::vector<EncoderUnit> encoders_;
 

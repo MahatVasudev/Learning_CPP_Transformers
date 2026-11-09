@@ -2,6 +2,7 @@
 
 #define DECODER_TRANSFORMER_NN
 
+#include "core/random.h"
 #include "nn/module.h"
 #include "nn/transformers/feedforward.h"
 #include <cstddef>
@@ -15,7 +16,8 @@ namespace nn::transformers {
 class DecoderUnit final : public Module {
 
 public:
-  DecoderUnit(size_t d_model, size_t d_ff, size_t heads, size_t seed);
+  DecoderUnit(size_t d_model, size_t d_ff, size_t heads,
+              core::random::Generator *gen = nullptr);
 
   std::vector<Tensor *> parameters() override;
 
@@ -43,13 +45,13 @@ private:
   void ensure_gradients(const Tensor &X);
 };
 
-// TODO: Define the decoder layer and implement
 class DecoderLayer final : public Module {
 
 public:
   DecoderLayer(size_t num_decoders, size_t d_model, size_t d_ff, size_t heads,
-               size_t seed = 0);
+               core::random::Generator *gen = nullptr);
 
+  std::vector<Tensor> const &activations() const { return activations_; };
   std::vector<Tensor *> parameters() override;
   std::vector<Tensor *> gradients() override;
 
