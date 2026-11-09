@@ -10,24 +10,35 @@ add_library(core_lib STATIC
   src/core/tensor.cpp
   src/core/utils
   src/core/errors.cpp
-)
-
-add_library(model_lib STATIC
- src/model/decoder.cpp
- src/model/encoder.cpp
+  src/core/random.cpp
 )
 
 add_library(nn_lib STATIC
- src/nn/activations.cpp
  src/nn/initialization.cpp
- src/nn/model.cpp
+ src/nn/embedding.cpp
+ src/nn/layer_norm.cpp
+ src/nn/linear.cpp
  src/nn/module.cpp
  src/nn/positional_encoding.cpp
+ src/nn/utils.cpp
+)
+
+add_library(transformers_lib STATIC
+ src/nn/transformers/decoder.cpp
+ src/nn/transformers/encoder.cpp
+ src/nn/transformers/feedforward.cpp
+ src/nn/transformers/multiheadattention.cpp
+)
+
+add_library(activations_lib STATIC
+  src/nn/activations/relu.cpp
+  src/nn/activations/softmax.cpp
 )
 
 add_library(ops_lib STATIC
   src/ops/cross_entropy.cpp
-  src/ops/ops.cpp
+  src/ops/matmul.cpp
+  src/ops/utils.cpp
 )
 
 add_library(testing_lib STATIC
@@ -49,14 +60,15 @@ add_library(test_lib STATIC
 )
 
 # dependencies, bottom to top (no cycles)
-target_link_libraries(ops_lib     PUBLIC core_lib)
-target_link_libraries(nn_lib      PUBLIC ops_lib core_lib)
-target_link_libraries(model_lib   PUBLIC core_lib ops_lib nn_lib)
-target_link_libraries(testing_lib PUBLIC core_lib)
-target_link_libraries(test_lib    PUBLIC core_lib model_lib ops_lib nn_lib testing_lib)
+target_link_libraries(ops_lib          PUBLIC core_lib)
+target_link_libraries(nn_lib           PUBLIC ops_lib core_lib)
+target_link_libraries(transformers_lib PUBLIC nn_lib core_lib activations_lib)
+target_link_libraries(activations_lib  PUBLIC nn_lib core_lib)
+target_link_libraries(testing_lib      PUBLIC core_lib)
+target_link_libraries(test_lib         PUBLIC core_lib model_lib ops_lib nn_lib testing_lib)
 
 # settings shared by every library
-foreach(lib core_lib model_lib nn_lib ops_lib testing_lib test_lib)
+foreach(lib core_lib nn_lib transformers_lib activations_lib ops_lib testing_lib test_lib)
   target_include_directories(${lib} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
   target_compile_options(${lib} PRIVATE -Wall -Wextra)
   if(ENABLE_SANITIZERS)
