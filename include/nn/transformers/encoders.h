@@ -30,6 +30,8 @@ public:
 
   void set_training(bool state) override;
 
+  void clear_cache() override;
+
 private:
   size_t d_model_;
   size_t d_ff_;
@@ -66,6 +68,8 @@ public:
 
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                 bool accumulate = false);
+
+  void clear_cache() override;
 
 private:
   size_t num_encoders_;

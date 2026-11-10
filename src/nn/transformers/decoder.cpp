@@ -26,6 +26,19 @@ void DecoderUnit::set_training(bool state) {
       {&ff_, &ln_1, &ln_2, &ln_3, &mha_self, &mha_cross}, state);
 }
 
+std::vector<Tensor *> DecoderUnit::parameters() {
+  return concat_parameters({&ff_, &ln_1, &ln_2, &ln_3, &mha_self, &mha_cross});
+}
+
+std::vector<Tensor *> DecoderUnit::gradients() {
+  return concat_gradients({&ff_, &ln_1, &ln_2, &ln_3, &mha_self, &mha_cross});
+}
+
+void DecoderUnit::clear_cache() {
+  nn::Module::clear_cache_all(
+      {&ff_, &ln_1, &ln_2, &ln_3, &mha_self, &mha_cross});
+};
+
 void DecoderUnit::ensure_buffers(const Tensor &X) {
   utils::ensure(mha_self_output_, X.shape());
   utils::ensure(norm_1_output_, X.shape());

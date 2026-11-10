@@ -43,6 +43,13 @@ void Module::set_training_all(const std::vector<Module *> &modules, bool mode) {
   }
 }
 
+void Module::clear_cache_all(const std::vector<Module *> &modules) {
+  for (Module *mod : modules) {
+    assert(mod != nullptr);
+    mod->clear_cache();
+  }
+}
+
 void Module::require_training(std::string method_name,
                               std::string additional_message) {
   if (!training_)

@@ -35,12 +35,19 @@ std::vector<Tensor *> EncoderUnit::gradients() {
 void EncoderUnit::set_training(bool state) {
   nn::Module::set_training(state);
   nn::Module::set_training_all({&ff_, &mha_}, state);
+}
 
-  if (!state) {
-    d_mha_output_.reset();
-    dX_.reset();
-    dSource_.reset();
-  }
+void EncoderUnit::clear_cache() {
+  // std::vector<Module *> all_modules = {&mha_, &ln_1, &ff_, &ln_2};
+  nn::Module::clear_cache_all({&mha_, &ln_1, &ff_, &ln_2});
+  d_mha_output_.reset();
+  dX_.reset();
+  dSource_.reset();
+  mha_output_.reset();
+  norm_1_output_.reset();
+  norm_2_output_.reset();
+  d_norm_1_output_.reset();
+  d_norm_2_output_.reset();
 }
 
 // A single EncoderUnit forward
@@ -154,6 +161,13 @@ std::vector<Tensor *> EncoderLayer::gradients() {
 void EncoderLayer::set_training(bool state) {
   Module::set_training(state);
   Module::set_training_all(module_ptrs_, state);
+}
+
+void EncoderLayer::clear_cache() {
+  nn::Module::clear_cache_all(module_ptrs_);
+  activations_.clear();
+  grad_a_.reset();
+  grad_b_.reset();
 }
 
 void EncoderLayer::ensure_buffers(const Tensor &X) {

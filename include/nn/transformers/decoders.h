@@ -29,6 +29,7 @@ public:
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX, bool accomulate);
 
   void set_training(bool state) override;
+  void clear_cache() override;
 
 private:
   size_t d_model_, d_ff_, heads_;
@@ -62,6 +63,7 @@ public:
                 bool accomulate = false);
 
   void set_training(bool mode) override;
+  void clear_cache() override;
 
 private:
   size_t num_decoders_;

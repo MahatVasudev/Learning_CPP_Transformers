@@ -37,6 +37,9 @@ public:
   // ENCODERUNIT
   // LayerNorm
   // ...
+
+  // clear_cache removes all of the optional tensors stored inside the module
+  // that includes buffers and gradients
   virtual void clear_cache() {};
 
 protected:
@@ -49,6 +52,8 @@ protected:
 
   void require_training(std::string method_name,
                         std::string additional_message = "");
+
+  static void clear_cache_all(const std::vector<Module *> &modules);
 };
 
 } // namespace nn

@@ -31,6 +31,8 @@ public:
 
   void set_training(bool state) override;
 
+  void clear_cache() override;
+
 private:
   std::size_t normalized_shape_;
   float epsilon_;

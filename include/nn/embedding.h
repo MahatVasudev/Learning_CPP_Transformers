@@ -25,6 +25,7 @@ public:
   void set_training(bool state) override;
 
   void ensure_gradient();
+  void clear_cache();
 
 private:
   std::size_t vocab_size_;

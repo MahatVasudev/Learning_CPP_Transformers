@@ -36,6 +36,8 @@ Embedding::Embedding(std::size_t vocab_size, std::size_t d_model,
   }
 }
 
+void Embedding::clear_cache() { dEmb_.reset(); }
+
 std::size_t Embedding::checked_id_(std::int32_t id) const {
   std::size_t _id = static_cast<std::size_t>(id);
   if (id < 0 || _id >= vocab_size_) {

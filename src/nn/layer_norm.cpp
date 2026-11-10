@@ -11,20 +11,18 @@ namespace error = core::error;
 
 namespace nn {
 
-void LayerNorm::set_training(bool state) {
-  Module::set_training(state);
-
-  if (!state) {
-    gamma_grad_.reset();
-    beta_grad_.reset();
-  }
-}
+void LayerNorm::set_training(bool state) { Module::set_training(state); }
 
 void LayerNorm::ensure_gradients_() {
   if (!gamma_grad_)
     gamma_grad_.emplace(std::vector<std::size_t>{normalized_shape_});
   if (!beta_grad_)
     beta_grad_.emplace(std::vector<std::size_t>{normalized_shape_});
+}
+
+void LayerNorm::clear_cache() {
+  gamma_grad_.reset();
+  beta_grad_.reset();
 }
 
 void LayerNorm::forward(const Tensor &X, Tensor &Y) const {

@@ -25,12 +25,11 @@ Linear::Linear(std::size_t in_features, std::size_t out_features, bool bias,
   fill_random(W_, Initialize::xavier_uniform(), gen);
 }
 
-void Linear::set_training(bool state) {
-  Module::set_training(state);
-  if (!state) {
-    dW_.reset();
-    dB_.reset();
-  }
+void Linear::set_training(bool state) { Module::set_training(state); }
+
+void Linear::clear_cache() {
+  dB_.reset();
+  dW_.reset();
 }
 
 void Linear::ensure_gradients_() {
