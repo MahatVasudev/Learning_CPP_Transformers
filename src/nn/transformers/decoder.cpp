@@ -19,42 +19,43 @@ DecoderUnit::DecoderUnit(size_t d_model, size_t d_ff, size_t heads,
       ln_3(d_model), mha_self(d_model, heads, true, generator),
       mha_cross(d_model, heads, false, generator) {}
 
-void DecoderUnit::set_training(bool state) {
-  nn::Module::set_training(state);
-
-  nn::Module::set_training_all(
-      {&ff_, &ln_1, &ln_2, &ln_3, &mha_self, &mha_cross}, state);
+std::vector<Module *> DecoderUnit::modules() {
+  return {&ln_1, &mha_self, &ln_2, &mha_cross, &ln_3, &ff_};
 }
 
-std::vector<Tensor *> DecoderUnit::parameters() {
-  return concat_parameters({&ff_, &ln_1, &ln_2, &ln_3, &mha_self, &mha_cross});
+std::vector<optional<Tensor> *> DecoderUnit::buffers_() {
+  return {&norm_1_output_, &norm_2_output_, &norm_3_output_, &mha_cross_output_,
+          &mha_self_output_};
 }
+std::vector<optional<Tensor> *> DecoderUnit::buffer_gradients_() {
 
-std::vector<Tensor *> DecoderUnit::gradients() {
-  return concat_gradients({&ff_, &ln_1, &ln_2, &ln_3, &mha_self, &mha_cross});
+  return {&d_norm_query_,
+          &d_norm_source_,
+          &d_norm_2_output_,
+          &d_norm_3_output_,
+          &d_mha_cross_output_,
+          &d_mha_self_output_,
+          &dX_,
+          &dSource_};
 }
-
-void DecoderUnit::clear_cache() {
-  nn::Module::clear_cache_all(
-      {&ff_, &ln_1, &ln_2, &ln_3, &mha_self, &mha_cross});
-};
 
 void DecoderUnit::ensure_buffers(const Tensor &X) {
-  utils::ensure(mha_self_output_, X.shape());
-  utils::ensure(norm_1_output_, X.shape());
-  utils::ensure(norm_2_output_, X.shape());
-  utils::ensure(norm_3_output_, X.shape());
-  utils::ensure(mha_cross_output_, X.shape());
+  for (optional<Tensor> *buff : buffers_()) {
+    if (buff) // IMP: TN 001
+      utils::ensure(*buff, X.shape());
+  }
 }
+
 void DecoderUnit::ensure_gradients(const Tensor &X) {
-  utils::ensure(d_mha_self_output_, X.shape());
-  utils::ensure(d_norm_query_, X.shape());
-  utils::ensure(d_norm_source_, X.shape());
-  utils::ensure(d_norm_2_output_, X.shape());
-  utils::ensure(d_norm_3_output_, X.shape());
-  utils::ensure(dX_, X.shape());
-  utils::ensure(dSource_, X.shape());
-  utils::ensure(d_mha_cross_output_, X.shape());
+  for (optional<Tensor> *buff : buffer_gradients_()) {
+    if (buff) // IMP: TN 001
+      utils::ensure(*buff, X.shape());
+  }
+}
+
+void DecoderUnit::clear_local_cache() {
+  Module::clear_local_cache();
+  source_ = nullptr;
 }
 
 void DecoderUnit::forward(const Tensor &X, Tensor &Y, const Tensor *mask,
@@ -160,12 +161,16 @@ DecoderLayer::DecoderLayer(size_t num_decoders, size_t d_model, size_t d_ff,
   }
 }
 
-std::vector<Tensor *> DecoderLayer::parameters() {
-  return concat_parameters(module_ptrs);
-}
+std::vector<Module *> DecoderLayer::modules() { return module_ptrs; }
 
-std::vector<Tensor *> DecoderLayer::gradients() {
-  return concat_gradients(module_ptrs);
+std::vector<optional<Tensor> *> DecoderLayer::buffer_gradients_() {
+  return {&grad_a_, &grad_b_};
+};
+
+void DecoderLayer::clear_local_cache() {
+  Module::clear_local_cache();
+
+  activations_.clear();
 }
 
 void DecoderLayer::ensure_buffers(const Tensor &X) {

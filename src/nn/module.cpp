@@ -16,7 +16,8 @@ std::vector<Tensor *>
 Module::concat_parameters(const std::vector<Module *> &modules) {
   std::vector<Tensor *> global_vec;
   for (Module *mod : modules) {
-    assert(mod != nullptr);
+    if (mod == nullptr)
+      continue;
     const std::vector<Tensor *> p = mod->parameters();
     global_vec.insert(global_vec.end(), p.begin(), p.end());
   }
@@ -36,20 +37,6 @@ Module::concat_gradients(const std::vector<Module *> &modules) {
   return global_vec;
 }
 
-void Module::set_training_all(const std::vector<Module *> &modules, bool mode) {
-  for (Module *mod : modules) {
-    assert(mod != nullptr);
-    mod->set_training(mode);
-  }
-}
-
-void Module::clear_cache_all(const std::vector<Module *> &modules) {
-  for (Module *mod : modules) {
-    assert(mod != nullptr);
-    mod->clear_cache();
-  }
-}
-
 void Module::require_training(std::string method_name,
                               std::string additional_message) {
   if (!training_)
@@ -57,6 +44,32 @@ void Module::require_training(std::string method_name,
         method_name +
         ": cannot run this method on eval(), run train() first\n" +
         additional_message);
+}
+
+void Module::clear_cache() {
+  this->clear_local_cache();
+  for (Module *child : modules()) {
+    if (child)
+      child->clear_cache();
+  }
+}
+
+std::vector<Tensor *>
+Module::collect_parameters(std::vector<Tensor *> parameters) {
+  std::vector<Tensor *> children = concat_parameters(modules());
+
+  parameters.insert(parameters.end(), children.begin(), children.end());
+
+  return parameters;
+}
+
+std::vector<Tensor *>
+Module::collect_gradients(std::vector<Tensor *> gradients) {
+  std::vector<Tensor *> children = concat_gradients(modules());
+
+  gradients.insert(gradients.end(), children.begin(), children.end());
+
+  return gradients;
 }
 
 } // namespace nn

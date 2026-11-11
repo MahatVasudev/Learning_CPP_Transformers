@@ -9,6 +9,12 @@
 // TODO: Learn and implement cache tiling
 
 // TODO: CORRECT TEST with the new implementations
+
+//////////// ISSUES TICKET /////////////////////
+///
+/// IMP: 001. When buff is a nullptr, assign a new tensor in ensure
+/// buffers/gradients
+
 namespace {
 
 struct Suite {

@@ -7,10 +7,12 @@
 #include <nn/module.h>
 #include <nn/transformers/multiheadattention.h>
 #include <nn/utils.h>
+#include <optional>
 #include <vector>
 
 using core::Tensor;
 using nn::utils::ensure;
+using std::optional;
 
 namespace error = core::error;
 
@@ -32,25 +34,23 @@ MultiheadAttention::MultiheadAttention(std::size_t in_dims, std::size_t heads,
   }
 }
 
-std::vector<Tensor *> MultiheadAttention::parameters() {
-  return concat_parameters({&query_, &key_, &value_, &output_});
+std::vector<Module *> MultiheadAttention::modules() {
+  return {&query_, &key_, &value_, &output_};
+};
+
+std::vector<optional<Tensor> *> MultiheadAttention::buffers_() {
+  return {&Q_proj_,        &K_proj_,       &V_proj_,      &scores_,
+          &probabilities_, &head_outputs_, &concatenated_};
 }
 
-std::vector<Tensor *> MultiheadAttention::gradients() {
-  return concat_gradients({&query_, &key_, &value_, &output_});
+std::vector<optional<Tensor> *> MultiheadAttention::buffer_gradients_() {
+  return {&d_scores_, &d_probabilities_, &dQ_, &dK_, &dV_};
 }
 
-void MultiheadAttention::set_training(bool state) {
-  Module::set_training(state);
+void MultiheadAttention::clear_local_cache() {
+  Module::clear_local_cache();
 
-  Module::set_training_all({&query_, &key_, &value_, &output_}, state);
-  if (!state) {
-    d_scores_.reset();
-    d_probabilities_.reset();
-    dQ_.reset();
-    dK_.reset();
-    dV_.reset();
-  }
+  causal_mask_.reset();
 }
 
 void MultiheadAttention::validate_buffers_(const Tensor &X,

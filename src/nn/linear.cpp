@@ -27,11 +27,6 @@ Linear::Linear(std::size_t in_features, std::size_t out_features, bool bias,
 
 void Linear::set_training(bool state) { Module::set_training(state); }
 
-void Linear::clear_cache() {
-  dB_.reset();
-  dW_.reset();
-}
-
 void Linear::ensure_gradients_() {
   if (!dW_)
     dW_.emplace(std::vector<std::size_t>{out_, in_});

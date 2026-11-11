@@ -24,30 +24,17 @@ EncoderUnit::EncoderUnit(size_t d_model, size_t d_ff, size_t heads,
       ff_(d_model_, d_ff_, generator), mha_(d_model_, heads_, false, generator),
       ln_1(d_model), ln_2(d_model) {}
 
-std::vector<Tensor *> EncoderUnit::parameters() {
-  return concat_parameters({&mha_, &ln_1, &ff_, &ln_2});
+std::vector<Module *> EncoderUnit::modules() {
+  return {&ln_1, &mha_, &ln_2, &ff_};
 }
 
-std::vector<Tensor *> EncoderUnit::gradients() {
-  return concat_gradients({&mha_, &ln_1, &ff_, &ln_2});
+std::vector<optional<Tensor> *> EncoderUnit::buffers_() {
+  return {&mha_output_, &norm_1_output_, &norm_2_output_};
 }
 
-void EncoderUnit::set_training(bool state) {
-  nn::Module::set_training(state);
-  nn::Module::set_training_all({&ff_, &mha_}, state);
-}
-
-void EncoderUnit::clear_cache() {
-  // std::vector<Module *> all_modules = {&mha_, &ln_1, &ff_, &ln_2};
-  nn::Module::clear_cache_all({&mha_, &ln_1, &ff_, &ln_2});
-  d_mha_output_.reset();
-  dX_.reset();
-  dSource_.reset();
-  mha_output_.reset();
-  norm_1_output_.reset();
-  norm_2_output_.reset();
-  d_norm_1_output_.reset();
-  d_norm_2_output_.reset();
+std::vector<optional<Tensor> *> EncoderUnit::buffer_gradients_() {
+  return {&d_mha_output_, &d_norm_1_output_, &d_norm_2_output_, &dX_,
+          &dSource_};
 }
 
 // A single EncoderUnit forward
@@ -120,18 +107,17 @@ void EncoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
 }
 
 void EncoderUnit::ensure_buffers(const Tensor &X) {
-  utils::ensure(mha_output_, X.shape());
-  utils::ensure(norm_1_output_, X.shape());
-  utils::ensure(norm_2_output_, X.shape());
+  for (optional<Tensor> *buff : buffers_()) {
+    if (buff) // IMP: TN 001
+      utils::ensure(*buff, X.shape());
+  }
 }
 
 void EncoderUnit::ensure_gradients(const Tensor &X) {
-  utils::ensure(d_mha_output_, X.shape());
-  utils::ensure(dX_, X.shape());
-  utils::ensure(dSource_, X.shape());
-  utils::ensure(d_norm_2_output_, X.shape());
-  utils::ensure(d_norm_1_output_, X.shape());
-  // utils::ensure(dff_output_, X.shape());
+  for (optional<Tensor> *buff : buffer_gradients_()) {
+    if (buff) // IMP: TN 001
+      utils::ensure(*buff, X.shape());
+  }
 }
 
 // IMPLEMENTING ENCODER LAYER
@@ -149,26 +135,11 @@ EncoderLayer::EncoderLayer(size_t num_layers, size_t d_model, size_t d_ff,
   }
 }
 
-std::vector<Tensor *> EncoderLayer::parameters() {
-  return concat_parameters(module_ptrs_);
-}
+std::vector<Module *> EncoderLayer::modules() { return module_ptrs_; }
 
-std::vector<Tensor *> EncoderLayer::gradients() {
-
-  return concat_gradients(module_ptrs_);
-}
-
-void EncoderLayer::set_training(bool state) {
-  Module::set_training(state);
-  Module::set_training_all(module_ptrs_, state);
-}
-
-void EncoderLayer::clear_cache() {
-  nn::Module::clear_cache_all(module_ptrs_);
-  activations_.clear();
-  grad_a_.reset();
-  grad_b_.reset();
-}
+std::vector<optional<Tensor> *> EncoderLayer::buffer_gradients_() {
+  return {&grad_a_, &grad_b_};
+};
 
 void EncoderLayer::ensure_buffers(const Tensor &X) {
   if (num_encoders_ == 0) {
@@ -190,6 +161,12 @@ void EncoderLayer::ensure_buffers(const Tensor &X) {
 void EncoderLayer::ensure_gradients(const Tensor &X) {
   utils::ensure(grad_a_, X.shape());
   utils::ensure(grad_b_, X.shape());
+}
+
+void EncoderLayer::clear_local_cache() {
+  Module::clear_local_cache();
+
+  activations_.clear();
 }
 
 void EncoderLayer::forward(const Tensor &X, Tensor &Y, const Tensor *mask) {

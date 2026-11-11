@@ -19,17 +19,12 @@ public:
   DecoderUnit(size_t d_model, size_t d_ff, size_t heads,
               core::random::Generator *gen = nullptr);
 
-  std::vector<Tensor *> parameters() override;
-
-  std::vector<Tensor *> gradients() override;
-
   void forward(const Tensor &X, Tensor &Y, const Tensor *mask = nullptr,
                const Tensor *context = nullptr);
 
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX, bool accomulate);
 
-  void set_training(bool state) override;
-  void clear_cache() override;
+  std::vector<Module *> modules() override;
 
 private:
   size_t d_model_, d_ff_, heads_;
@@ -42,7 +37,10 @@ private:
   std::optional<Tensor> d_mha_self_output_, d_norm_query_, d_norm_source_,
       d_norm_2_output_, d_norm_3_output_, dX_, dSource_, d_mha_cross_output_;
 
+  std::vector<optional<Tensor> *> buffers_() override;
+  std::vector<optional<Tensor> *> buffer_gradients_() override;
   void ensure_buffers(const Tensor &X);
+  void clear_local_cache() override;
   void ensure_gradients(const Tensor &X);
 };
 
@@ -53,8 +51,6 @@ public:
                core::random::Generator *gen = nullptr);
 
   std::vector<Tensor> const &activations() const { return activations_; };
-  std::vector<Tensor *> parameters() override;
-  std::vector<Tensor *> gradients() override;
 
   void forward(const Tensor &X, Tensor &Y, const Tensor *context = nullptr,
                const Tensor *mask = nullptr);
@@ -62,15 +58,13 @@ public:
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                 bool accomulate = false);
 
-  void set_training(bool mode) override;
-  void clear_cache() override;
+  std::vector<Module *> modules() override;
 
 private:
   size_t num_decoders_;
   size_t d_model_;
   size_t d_ff_;
   size_t heads_;
-  size_t seed;
 
   std::vector<Tensor> activations_;
 
@@ -78,6 +72,8 @@ private:
 
   std::vector<Module *> module_ptrs;
 
+  void clear_local_cache() override;
+  std::vector<optional<Tensor> *> buffer_gradients_() override;
   std::optional<Tensor> grad_a_;
   std::optional<Tensor> grad_b_;
   void ensure_buffers(const Tensor &X);

@@ -24,13 +24,7 @@ public:
 
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX, bool accumulate);
 
-  std::vector<Tensor *> parameters() override;
-
-  std::vector<Tensor *> gradients() override;
-
-  void set_training(bool state) override;
-
-  void clear_cache() override;
+  std::vector<Module *> modules() override;
 
 private:
   size_t d_model_;
@@ -43,6 +37,9 @@ private:
   std::optional<Tensor> mha_output_, norm_1_output_, norm_2_output_,
       d_mha_output_, dX_, dSource_, d_norm_1_output_, d_norm_2_output_;
 
+  std::vector<optional<Tensor> *> buffers_() override;
+  std::vector<optional<Tensor> *> buffer_gradients_() override;
+
   void ensure_buffers(const Tensor &X);
   void ensure_gradients(const Tensor &X);
 };
@@ -53,10 +50,6 @@ public:
   EncoderLayer(size_t num_layers, size_t d_model, size_t d_ff, size_t heads,
                core::random::Generator *gen = nullptr);
   std::vector<Tensor> const &activations() const { return activations_; };
-
-  std::vector<Tensor *> parameters() override;
-  std::vector<Tensor *> gradients() override;
-  void set_training(bool state) override;
 
   // NOTE: runs the entire num_encoders and in the end you can get input_buffers
   // as the entire results, or Y as our final result;
@@ -69,7 +62,7 @@ public:
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                 bool accumulate = false);
 
-  void clear_cache() override;
+  std::vector<Module *> modules() override;
 
 private:
   size_t num_encoders_;
@@ -85,7 +78,8 @@ private:
   std::optional<Tensor> grad_a_;
   std::optional<Tensor> grad_b_;
   std::vector<Module *> module_ptrs_;
-
+  std::vector<optional<Tensor> *> buffer_gradients_() override;
+  void clear_local_cache() override;
   // void _regenerate_module_ptrs();
 
   void ensure_buffers(const Tensor &X);

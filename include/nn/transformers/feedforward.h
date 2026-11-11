@@ -17,11 +17,10 @@ public:
   void forward(const Tensor &X, Tensor &Y);
   void backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                 bool accumulate = false);
-  std::vector<Tensor *> parameters() override;
 
-  std::vector<Tensor *> gradients() override;
+  std::vector<Module *> modules() override;
 
-  void set_training(bool state) override;
+  // void set_training(bool state) override;
 
 private:
   std::size_t d_model_;
@@ -32,6 +31,11 @@ private:
 
   std::optional<Tensor> h_pre_, h_act_, dh_pre_, dh_act_;
   std::vector<std::size_t> hidden_shape_(const Tensor &X) const;
+
+  std::vector<std::optional<Tensor> *> buffers_() override;
+
+  std::vector<std::optional<Tensor> *> buffer_gradients_() override;
+
   void ensure_buffers_(const Tensor &X);
 
   void ensure_gradients_(const Tensor &X);

@@ -31,14 +31,12 @@ public:
 
   void set_training(bool state) override;
 
-  void clear_cache() override;
-
 private:
   std::size_t normalized_shape_;
   float epsilon_;
   Tensor gamma_, beta_;
   std::optional<Tensor> gamma_grad_, beta_grad_;
-
+  void clear_local_cache() override;
   float mean_calculate_(const float *x, std::size_t by) const;
 
   float variance_calculate_(const float *x, const float mean,

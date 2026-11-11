@@ -25,7 +25,6 @@ public:
   void set_training(bool state) override;
 
   void ensure_gradient();
-  void clear_cache();
 
 private:
   std::size_t vocab_size_;
@@ -33,6 +32,7 @@ private:
   std::optional<std::size_t> padding_idx_;
   Tensor Emb_;
   std::optional<Tensor> dEmb_;
+  void clear_local_cache() override;
 
   std::size_t checked_id_(std::int32_t id) const;
 };

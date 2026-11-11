@@ -1,4 +1,5 @@
 #include "core/random.h"
+#include "nn/utils.h"
 #include <core/errors.h>
 #include <core/tensor.h>
 #include <core/utils.h>
@@ -18,23 +19,18 @@ FeedForward::FeedForward(std::size_t d_model, std::size_t d_ff,
       l1_(Linear(d_model, d_ff, true, generator)),
       l2_(Linear(d_ff, d_model, true, generator)), relu_() {}
 
-void FeedForward::set_training(bool state) {
-  Module::set_training(state);
-
-  Module::set_training_all({&l1_, &l2_}, state);
-
-  if (!state) {
-    dh_pre_.reset();
-    dh_act_.reset();
+void FeedForward::ensure_buffers_(const Tensor &X) {
+  for (std::optional<Tensor> *buff : buffers_()) {
+    if (buff) // IMP: TN 001
+      nn::utils::ensure(*buff, X.shape());
   }
 }
 
 void FeedForward::ensure_gradients_(const Tensor &X) {
-  const std::vector<std::size_t> shape = this->hidden_shape_(X);
-  if (dh_pre_ && dh_pre_->shape() == shape)
-    return; // steady state: no allocation
-  dh_pre_.emplace(shape);
-  dh_act_.emplace(shape);
+  for (std::optional<Tensor> *buff : buffer_gradients_()) {
+    if (buff) // IMP: TN 001
+      nn::utils::ensure(*buff, X.shape());
+  }
 }
 
 std::vector<std::size_t> FeedForward::hidden_shape_(const Tensor &X) const {
@@ -49,14 +45,6 @@ std::vector<std::size_t> FeedForward::hidden_shape_(const Tensor &X) const {
   return shape;
 }
 
-void FeedForward::ensure_buffers_(const Tensor &X) {
-  const std::vector<std::size_t> shape = this->hidden_shape_(X);
-  if (h_pre_ && h_pre_->shape() == shape)
-    return; // steady state: no allocation
-  h_pre_.emplace(shape);
-  h_act_.emplace(shape);
-}
-
 void FeedForward::forward(const Tensor &X, Tensor &Y) {
   if (Y.shape() != X.shape())
     throw error::ShapeError("FeedForward::forward",
@@ -66,12 +54,12 @@ void FeedForward::forward(const Tensor &X, Tensor &Y) {
 
     );
   core::utils::require_nonoverlap(X, Y, "FeedForward::forward", "X", "Y");
+
+  ensure_buffers_(X);
+
   l1_.forward(X, *h_pre_);
-  // std::cout << "pased l1";
   relu_.forward(*h_pre_, *h_act_);
-  // std::cout << "pased l2";
   l2_.forward(*h_act_, Y);
-  // std::cout << "pased l3";
 }
 
 void FeedForward::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
@@ -94,12 +82,13 @@ void FeedForward::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   l1_.backward(X, *dh_pre_, dX, accumulate);
 }
 
-std::vector<Tensor *> FeedForward::parameters() {
-  return this->concat_parameters({&l1_, &l2_});
+std::vector<Module *> FeedForward::modules() { return {&l1_, &l2_}; }
+
+std::vector<std::optional<Tensor> *> FeedForward::buffers_() {
+  return {&h_pre_, &h_act_};
 }
 
-std::vector<Tensor *> FeedForward::gradients() {
-  return this->concat_gradients({&l1_, &l2_});
-}
-
+std::vector<std::optional<Tensor> *> FeedForward::buffer_gradients_() {
+  return {&dh_pre_, &dh_act_};
+};
 } // namespace nn::transformers

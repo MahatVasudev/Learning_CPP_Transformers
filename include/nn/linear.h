@@ -27,8 +27,6 @@ public:
 
   void set_training(bool state) override;
 
-  void clear_cache() override;
-
 private:
   std::size_t in_, out_;
   bool bias_;
