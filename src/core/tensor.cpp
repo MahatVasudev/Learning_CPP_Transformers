@@ -415,8 +415,11 @@ Tensor Tensor::from_pointer(std::vector<std::size_t> shape, const float *src,
                             const std::size_t count) {
 
   Tensor t(std::move(shape));
-  assert(src != nullptr);
-  assert(count == t.numel());
+
+  if (count != t.numel_) {
+    // TODO: TN 002
+  }
+  assert(src != nullptr); // TODO: TN 003
   std::copy(src, src + count, t.data());
   return t;
 }

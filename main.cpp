@@ -14,6 +14,8 @@
 ///
 /// IMP: 001. When buff is a nullptr, assign a new tensor in ensure
 /// buffers/gradients
+// TODO: 002. Throw invalid given shape and number of values in vector
+// TODO 003. Remove Assert
 
 namespace {
 
