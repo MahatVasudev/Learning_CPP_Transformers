@@ -12,7 +12,8 @@
 using std::size_t;
 
 namespace nn::transformers {
-
+// IMP: decoder unit should only employ the cross attention layer, when a source
+// dX is given, else only use the causal attention
 class DecoderUnit final : public Module {
 
 public:

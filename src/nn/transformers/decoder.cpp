@@ -139,7 +139,8 @@ void DecoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                     *d_norm_query_, *d_norm_source_, false);
 
   d_norm_query_->add(*d_norm_source_);
-  ln_1.backward(X, *d_norm_source_, *dX_);
+  ln_1.backward(X, *d_norm_query_,
+                *dX_); // FIXED: took dY as d_norm_source_ by mistake
 
   if (accumulate) {
     dX.add(*dX_);
