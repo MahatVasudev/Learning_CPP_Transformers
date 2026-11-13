@@ -11,6 +11,7 @@ add_library(core_lib STATIC
   src/core/utils
   src/core/errors.cpp
   src/core/random.cpp
+  src/core/tokenized_tensor.cpp
 )
 
 add_library(nn_lib STATIC
@@ -25,9 +26,11 @@ add_library(nn_lib STATIC
 
 add_library(transformers_lib STATIC
  src/nn/transformers/decoder.cpp
+ src/nn/transformers/decoder_gpt.cpp
  src/nn/transformers/encoder.cpp
  src/nn/transformers/feedforward.cpp
  src/nn/transformers/multiheadattention.cpp
+ src/nn/transformers/transformer.cpp
 )
 
 add_library(activations_lib STATIC
