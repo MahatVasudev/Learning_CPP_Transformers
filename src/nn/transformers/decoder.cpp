@@ -196,20 +196,20 @@ void DecoderLayer::ensure_gradients(const Tensor &X) {
   utils::ensure(grad_b_, X.shape());
 }
 
+// The DecoderLayer forward pass
+// passes the context to each decoder layer
 void DecoderLayer::forward(const Tensor &X, Tensor &Y, const Tensor *context,
                            const Tensor *mask) {
   core::utils::require_nonoverlap(X, Y, "DecoderLayer::forward", "X", "Y");
   ensure_buffers(X);
 
   const Tensor *input = &X;
-  for (std::size_t i = 0; i + 1 < num_decoders_; i++) {
+  for (std::size_t i = 0; i < num_decoders_; i++) {
     Tensor *output = &activations_[i];
-    decoders_[i].forward(*input, *output, mask);
+    decoders_[i].forward(*input, *output, mask, context);
 
     input = output;
   }
-
-  decoders_.back().forward(*input, Y, mask, context);
 }
 
 void DecoderLayer::backward(const Tensor &X, const Tensor &dY, Tensor &dX,

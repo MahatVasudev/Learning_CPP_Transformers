@@ -58,8 +58,11 @@ private:
   LayerNorm ln_1, ln_2;
   MultiheadAttention mha_cross;
 
-  std::optional<Tensor> mha_cross_output_, norm_1_output_;
-  std::optional<Tensor> d_mha_self_output_, d_norm_1_output_, dX_;
+  Tensor *source = nullptr;
+
+  std::optional<Tensor> mha_cross_output_, norm_1_output_, norm_2_output_;
+  std::optional<Tensor> d_mha_cross_output_, d_norm_1_output_, d_norm_2_output_,
+      d_norm_source_output;
 
   std::vector<optional<Tensor> *> buffers_() override;
   std::vector<optional<Tensor> *> buffer_gradients_() override;
