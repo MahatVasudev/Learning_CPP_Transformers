@@ -35,6 +35,8 @@ private:
   optional<Tensor> d_mha_self_output_, d_norm_1_X_, d_norm_1_Source_,
       d_norm_2_output_;
 
+  void ensure_buffers(const Tensor &X);
+  void ensure_buffer_gradients(const Tensor &X);
   vector<optional<Tensor> *> buffers_() override;
   vector<optional<Tensor> *> buffer_gradients_() override;
 };
@@ -66,6 +68,7 @@ private:
 
   std::vector<optional<Tensor> *> buffers_() override;
   std::vector<optional<Tensor> *> buffer_gradients_() override;
+  void clear_local_cache() override;
 };
 
 } // namespace nn::transformers

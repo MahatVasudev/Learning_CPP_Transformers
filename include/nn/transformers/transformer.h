@@ -30,10 +30,8 @@ public:
               std::optional<size_t> padding_idx = std::nullopt,
               core::random::Generator *generator = nullptr);
 
-  // TODO: some how need to show Query and Result as Tensors but in int32
-  // i could make a simple type which would contain the int32_t type and a
-  // conversion from this type to tensor, and no operation
-  // what do i name it list? Input? maybe TokenizedTensor
+  // IMPLEMENTED: using TokenizedTensor type which holds shape strides and int
+  // data can be converted to Tensor when needed
 
   // Transformer forward pass, made specifically for training. does not save
   // Encoder Output in cache

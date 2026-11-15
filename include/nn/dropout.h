@@ -20,11 +20,15 @@ public:
 
   void backward(const Tensor &dY, Tensor &dX, bool accumulate = false);
 
+  float constexpr scale() const noexcept { return 1.0f / (1.0f - p_); }
+
 private:
   float p_;
   crandom::Generator *rng_;
   std::optional<Tensor> mask_;
   vector<std::optional<Tensor> *> buffers_() override;
+
+  void ensure_mask(const Tensor &X);
 };
 } // namespace nn
 

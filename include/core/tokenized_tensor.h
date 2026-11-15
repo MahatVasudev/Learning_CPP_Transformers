@@ -26,6 +26,7 @@ public:
 
   std::int32_t *data() { return data_.get(); }
   size_t numel() const { return numel_; }
+  const vector<size_t> &shape() const { return shape_; }
 
   const std::int32_t *data() const { return data_.get(); }
 

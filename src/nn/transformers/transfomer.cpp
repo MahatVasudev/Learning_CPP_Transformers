@@ -49,7 +49,6 @@ void Transformer::encode(const TokenizedTensor &XQuery, Tensor &Y,
 
 void Transformer::decode(const TokenizedTensor &XResult, Tensor &Y,
                          const Tensor *context, const Tensor *output_mask) {
-
   emb.forward(XResult.data(), XResult.numel(), *result_embedding_);
 
   pos_enc.add_to(*result_embedding_);
@@ -65,9 +64,13 @@ void Transformer::forward_train(const TokenizedTensor &XQuery,
   // TODO: TN 004 ! add check for 3 dimensional data in Tokenized-Tensor, the
   // batch size and the vocab size of Query and Result must be same might not be
   // needed as Embedding is inside of the Transformer class
+  if (XQuery.shape()) {
+  }
 
   // TODO: Need to check whether emb will correctly assign the data to
   // query_embedding buffer, w.r.t the shape
+
+  // TODO: also need to add the check for max len...
   encode(XQuery, *query_encoded_, input_mask);
 
   decode(XResult, Y, &*query_encoded_, output_mask);
