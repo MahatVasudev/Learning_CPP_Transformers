@@ -5,6 +5,9 @@
 #include <memory>
 #include <vector>
 #define TENSOR_FUNCTIONAL_H
+
+using std::vector;
+
 namespace core {
 
 // TODO: Need to add support for multiple data types (only numeric)
@@ -88,6 +91,41 @@ public:
   Tensor sum(std::vector<int> &axes, bool keepdims = false) const;
   Tensor norm(const float &p, int &axis, bool keepdims = false) const;
   float norm(const float &p) const;
+
+  // For each method for non reduction methods
+  //
+  // Callback signature:
+  // void (std::size_t input_offset,
+  // std::size_t output_offset, std::size_t linear);
+  template <typename Callback>
+  static void for_each(const vector<size_t> &input_shape,
+                       const vector<size_t> &input_strides,
+                       const vector<size_t> &output_strides,
+                       Callback &&callback) {
+
+    const std::size_t rank_ = input_shape.size();
+    std::size_t numel = 1;
+
+    for (std::size_t dim : input_shape) {
+      numel *= dim;
+    }
+
+    for (std::size_t linear = 0; linear < numel; linear++) {
+      std::size_t remainder = linear;
+      std::size_t input_offset = 0;
+      std::size_t output_offset = 0;
+
+      for (size_t dim = rank_; dim-- > 0;) {
+        const size_t coords = remainder % input_shape[dim];
+        remainder /= input_shape[dim];
+
+        input_offset += coords * input_strides[dim];
+        output_offset += coords * output_strides[dim];
+      }
+
+      callback(input_offset, output_offset, linear);
+    }
+  };
 
   // For each method for reduction methods
   //
