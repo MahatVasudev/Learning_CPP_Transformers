@@ -14,6 +14,7 @@ using std::vector;
 namespace core {
 // only store data from computation purposes, and to be then shifted to Tensor;
 class TokenizedTensor {
+public:
   TokenizedTensor(vector<size_t> shape);
 
   ~TokenizedTensor() = default;                             // Destructor
@@ -24,6 +25,7 @@ class TokenizedTensor {
   operator=(TokenizedTensor &&other) noexcept; // Move assignment
 
   std::int32_t *data() { return data_.get(); }
+  size_t numel() const { return numel_; }
 
   const std::int32_t *data() const { return data_.get(); }
 
