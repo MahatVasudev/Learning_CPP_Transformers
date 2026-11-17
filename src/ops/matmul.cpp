@@ -36,7 +36,7 @@ void gemm(const float *A, const float *B, float *C, std::size_t M,
           bool transB, bool accumulate) {
   if (M == 0 || N == 0)
     return;
-
+  // TODO: TN 003
   assert(A != nullptr && B != nullptr && C != nullptr);
 
   assert(a_stride0 > 0 && a_stride1 > 0);
@@ -292,6 +292,8 @@ void bmm(const Tensor &A, const Tensor &B, Tensor &C) {
 
 void matmul_backward(const Tensor &A, const Tensor &B, const Tensor &dY,
                      Tensor &dA, Tensor &dB, bool accumulate) {
+
+  // TODO: TN 003
   assert(dA.shape() == A.shape());
   assert(dB.shape() == B.shape());
   assert(dY.shape()[0] == A.shape()[0] && dY.shape()[1] == B.shape()[1]);

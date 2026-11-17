@@ -12,6 +12,7 @@ namespace testing {
 GradcheckResult check_gradient(Tensor &x, const Tensor &analytic_grad,
                                const std::function<double()> &loss, double eps,
                                double tol) {
+  // TODO: TN 003
   assert(x.shape() == analytic_grad.shape());
 
   GradcheckResult grad_result = GradcheckResult();

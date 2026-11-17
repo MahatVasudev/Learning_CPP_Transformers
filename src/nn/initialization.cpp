@@ -61,11 +61,15 @@ void fill_random(Tensor &t, const Initialize &init, crandom::Generator &gen) {
     break;
   }
   case InitializeKind::Uniform: {
+
+    // TODO: TN 003
     assert(init.a <= init.b);
     fill_dist(t, [&]() { return gen.uniform(init.a, init.b); });
     break;
   }
   case InitializeKind::Normal: {
+
+    // TODO: TN 003
     assert(init.b >= 0.0f);
     fill_dist(t, [&]() { return gen.normal(init.a, init.b); });
     break;

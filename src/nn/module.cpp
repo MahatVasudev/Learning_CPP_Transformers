@@ -29,6 +29,7 @@ std::vector<Tensor *>
 Module::concat_gradients(const std::vector<Module *> &modules) {
   std::vector<Tensor *> global_vec;
   for (Module *mod : modules) {
+    // TODO: TN 003
     assert(mod != nullptr);
     const std::vector<Tensor *> g = mod->gradients();
     global_vec.insert(global_vec.end(), g.begin(), g.end());

@@ -19,6 +19,7 @@ Linear::Linear(std::size_t in_features, std::size_t out_features, bool bias,
                core::random::Generator *generator)
     : in_(in_features), out_(out_features), bias_(bias),
       W_(Tensor({out_features, in_features})), B_(Tensor({out_features})) {
+  // TODO: TN 003
   assert(in_features > 0 && out_features > 0);
   core::random::Generator &gen =
       (generator == nullptr) ? core::random::global_rng() : *generator;
@@ -38,12 +39,16 @@ void Linear::forward(const Tensor &X, Tensor &Y) const {
   require_contiguous(X, "Linear::forward", "X");
   require_contiguous(Y, "Linear::forward", "Y");
   core::utils::require_nonoverlap(X, Y, "Linear::forward", "X", "Y");
+
+  // TODO: TN 003
   assert(X.rank() >= 1 && X.shape().back() == in_);
   assert(Y.rank() == X.rank() && Y.shape().back() == out_);
 
   for (std::size_t d = 0; d + 1 < X.rank(); ++d) {
     assert(X.shape()[d] == Y.shape()[d]);
   }
+
+  // TODO: TN 003 (overlaps check as-well)
   assert(&X != &Y);
   Y.fill(0.0f);
   if (bias_) {
@@ -63,6 +68,8 @@ void Linear::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   require_contiguous(X, "Linear::backward", "X");
   require_contiguous(dY, "Linear::backward", "dY");
   require_contiguous(dX, "Linear::backward", "dX");
+
+  // TODO: TN 003
   assert(X.rank() >= 1 && X.shape().back() == in_);
   assert(dY.shape().back() == out_);
   assert(dX.shape() == X.shape());

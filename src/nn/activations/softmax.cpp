@@ -11,6 +11,8 @@ namespace nn::activations {
 void Softmax::forward(const Tensor &X, Tensor &Y) const {
   require_contiguous(X, "Softmax::forward", "X");
   require_contiguous(Y, "Softmax::forward", "Y");
+
+  // TODO: TN 003
   assert(X.shape() == Y.shape());
   assert(&X != &Y);
   assert(dim_ == -1);
@@ -50,6 +52,8 @@ void Softmax::backward(const Tensor &X, const Tensor &Y, const Tensor &dY,
   require_contiguous(Y, "Softmax::backward", "Y");
   require_contiguous(dX, "Softmax::backward", "dX");
   require_contiguous(dY, "Softmax::backward", "dY");
+
+  // TODO: TN 003
   assert(X.shape() == Y.shape());
   assert(Y.shape() == dY.shape());
   assert(X.shape() == dX.shape());

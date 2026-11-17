@@ -11,6 +11,8 @@ namespace nn::activations {
 void ReLU::forward(const Tensor &X, Tensor &Y) const {
   require_contiguous(X, "ReLU::forward", "X");
   require_contiguous(Y, "ReLU::forward", "Y");
+
+  // TODO: TN 003
   assert(Y.shape() == X.shape());
   assert(&X != &Y);
   const float *x = X.data();
@@ -26,6 +28,8 @@ void ReLU::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   require_contiguous(X, "ReLU::backward", "X");
   require_contiguous(dX, "ReLU::backward", "dX");
   require_contiguous(dY, "ReLU::backward", "dY");
+
+  // TODO: TN 003
   assert(X.shape() == dY.shape());
   assert(X.shape() == dX.shape());
 

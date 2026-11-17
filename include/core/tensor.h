@@ -243,11 +243,13 @@ public:
 
 private:
   template <typename... Idx> std::size_t offset(Idx... idx) const {
+    // TODO: TN 003
     static_assert(sizeof...(Idx) > 0, "need at least one index");
     assert(sizeof...(Idx) == shape_.size() && "index count must equal rank");
     const std::size_t indices[] = {static_cast<std::size_t>(idx)...};
     std::size_t off = 0;
     for (std::size_t d = 0; d < shape_.size(); ++d) {
+      // TODO: TN 003
       assert(indices[d] < shape_[d] && "index out of bounds");
       off += indices[d] * strides_[d];
     }

@@ -28,6 +28,7 @@ void ensure(std::optional<Tensor> &buffer,
 }
 
 template <typename T> T iterative_product_vector(std::vector<T> &data) {
+  // TODO: TN 003
   assert(std::is_arithmetic_v<T>);
   T value = static_cast<T>(1);
 

@@ -13,11 +13,13 @@ CrossEntropyResult cross_entropy(const Tensor &logits,
                                  const std::int32_t *targets,
                                  std::int32_t ignore_index) {
   require_contiguous(logits, "cross_entropy", "logits");
+  // TODO: TN 003
   assert(logits.rank() >= 1);
   assert(targets != nullptr);
 
   const std::size_t V = logits.shape().back();
 
+  // TODO: TN 003
   assert(V > 0);
 
   const std::size_t rows = logits.numel() / V;
@@ -33,6 +35,7 @@ CrossEntropyResult cross_entropy(const Tensor &logits,
     if (t == ignore_index)
       continue;
 
+    // TODO: TN 003
     assert(t >= 0 && static_cast<std::size_t>(t) < V);
 
     const float *row = z + r * V;
@@ -66,12 +69,16 @@ void cross_entropy_backward(const Tensor &logits, const std::int32_t *targets,
                             bool accumulate) {
   require_contiguous(logits, "cross_entropy_backward", "logits");
   require_contiguous(dlogits, "cross_entropy_backward", "dlogits");
+
+  // TODO: TN 003
   assert(logits.rank() >= 1);
   assert(targets != nullptr);
   assert(dlogits.shape() == logits.shape());
   assert(&dlogits != &logits);
 
   const std::size_t V = logits.shape().back();
+
+  // TODO: TN 003
   assert(V > 0);
   const std::size_t rows = logits.numel() / V;
 
@@ -109,6 +116,7 @@ void cross_entropy_backward(const Tensor &logits, const std::int32_t *targets,
       continue;
     }
 
+    // TODO: TN 003
     assert(t >= 0 && static_cast<std::size_t>(t) < V);
 
     float max_v = row[0];

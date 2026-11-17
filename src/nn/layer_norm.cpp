@@ -24,6 +24,8 @@ void LayerNorm::forward(const Tensor &X, Tensor &Y) const {
   require_contiguous(X, "LayerNorm::forward", "X");
   require_contiguous(Y, "LayerNorm::forward", "Y");
   core::utils::require_nonoverlap(X, Y, "LayerNorm::forward", "X", "Y");
+
+  // TODO: TN 003
   assert(X.rank() >= 1);
   assert(X.shape().back() == normalized_shape_);
   assert(Y.shape() == X.shape());
@@ -62,6 +64,8 @@ void LayerNorm::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
   require_contiguous(dX, "LayerNorm::backward", "dX");
   core::utils::require_nonoverlap(X, dX, "LayerNorm::backward", "X", "dX");
   core::utils::require_nonoverlap(dY, dX, "LayerNorm::backward", "dY", "dX");
+
+  // TODO: TN 003
   assert(X.rank() >= 1);
   assert(X.shape() == dX.shape());
   assert(X.shape() == dY.shape());

@@ -16,6 +16,8 @@ Embedding::Embedding(std::size_t vocab_size, std::size_t d_model,
                      core::random::Generator *generator)
     : vocab_size_(vocab_size), d_model_(d_model), padding_idx_(padding_idx),
       Emb_({vocab_size, d_model}) {
+
+  // TODO: TN 003
   assert(vocab_size > 0 && d_model > 0);
   if (padding_idx_ && *padding_idx_ >= vocab_size_) {
     throw error::IndexError(
@@ -69,6 +71,8 @@ void Embedding::forward(const std::int32_t *ids, std::size_t n,
   require_contiguous(Y, "Embedding::forward", "Y");
 
   core::utils::require_nonoverlap(Y, Emb_, "Embedding::forward", "Y", "Emb_");
+
+  // TODO: TN 003
   assert(ids != nullptr);
   assert(Y.rank() >= 1 && Y.shape().back() == d_model_);
   assert(Y.numel() == n * d_model_);
@@ -96,6 +100,8 @@ void Embedding::backward(const std::int32_t *ids, std::size_t n,
 
   core::utils::require_nonoverlap(dY, Emb_, "Embedding::backward", "dY",
                                   "dEmb_");
+
+  // TODO: TN 003
   assert(ids != nullptr);
   assert(dY.rank() >= 1 && dY.shape().back() == d_model_);
   assert(dY.numel() == n * d_model_);
