@@ -32,6 +32,52 @@ void require_nonoverlap(const Tensor &t1, const Tensor &t2,
   }
 }
 
+void require_shape_match(const vector<size_t> &shape1,
+                         const vector<size_t> &shape2,
+                         const std::string &operation,
+                         const std::string &variable_name1,
+                         const std::string &variable_name2,
+                         const std::string &additional_message) {
+
+  if (shape1 != shape2) {
+    const std::string &t1_name =
+        variable_name1.empty() ? "shape1" : "shape of " + variable_name1;
+
+    const std::string &t2_name =
+        variable_name2.empty() ? "shape2" : "shape of " + variable_name2;
+    throw error::ShapeError(
+        operation,
+        error::make_message(variable_name1, "does not match; shape of ",
+                            variable_name1),
+        shape1,
+        error::make_message(variable_name2, " ", error::format_shape(shape2),
+                            "\n", additional_message));
+  }
+}
+
+void require_broadcastable_shape(const vector<size_t> &shape1,
+                                 const vector<size_t> &shape2,
+                                 const std::string &operation,
+                                 const std::string &variable_name1,
+                                 const std::string &variable_name2,
+                                 const std::string &additional_message) {
+
+  if (Tensor::is_broadcast_possible(shape1, shape2)) {
+    const std::string &t1_name =
+        variable_name1.empty() ? "shape1" : "shape of " + variable_name1;
+
+    const std::string &t2_name =
+        variable_name2.empty() ? "shape2" : "shape of " + variable_name2;
+    throw error::ShapeError(
+        operation,
+        error::make_message(variable_name1, "does cannot be broadcastable; ",
+                            variable_name1),
+        shape1,
+        error::make_message(variable_name2, " ", error::format_shape(shape2),
+                            "\n", additional_message));
+  }
+}
+
 Tensor reshape(Tensor &tensor, std::vector<std::size_t> &shape) {
   Tensor t_diff = tensor;
 

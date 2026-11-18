@@ -20,6 +20,7 @@ template <typename... Args> std::string make_message(const Args &...args) {
   return oss.str();
 }
 
+// ShapeError
 class ShapeError : public std::invalid_argument {
 
 public:
@@ -34,6 +35,7 @@ private:
                              const std::string &addtional_message);
 };
 
+// IndexError
 class IndexError : public std::out_of_range {
 public:
   template <typename T>
@@ -51,11 +53,13 @@ private:
   }
 };
 
+// StateError
 class StateError : public std::logic_error {
 public:
   explicit StateError(const std::string &message);
 };
 
+// OverlapError
 class OverlapError : public std::logic_error {
 
 public:

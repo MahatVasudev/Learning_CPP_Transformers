@@ -19,5 +19,19 @@ void require_nonoverlap(const Tensor &t1, const Tensor &t2,
                         const std::string &variable_name2 = "",
                         const std::string &additional_message = "");
 
+void require_shape_match(const vector<size_t> &shape1,
+                         const vector<size_t> &shape2,
+                         const std::string &operation,
+                         const std::string &variable_name1 = "",
+                         const std::string &variable_name2 = "",
+                         const std::string &additional_message = "");
+
+void require_broadcastable_shape(const vector<size_t> &shape1,
+                                 const vector<size_t> &shape2,
+                                 const std::string &operation,
+                                 const std::string &variable_name1 = "",
+                                 const std::string &variable_name2 = "",
+                                 const std::string &additional_message = "");
+
 } // namespace core::utils
 #endif // !CORE_TENSOR_UTILS
