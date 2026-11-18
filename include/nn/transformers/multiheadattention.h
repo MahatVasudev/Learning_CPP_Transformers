@@ -11,6 +11,7 @@
 using std::optional;
 namespace nn::transformers {
 
+// TODO: TN 005
 class MultiheadAttention final : public Module {
 public:
   MultiheadAttention(std::size_t in_dims, std::size_t heads,
@@ -20,8 +21,8 @@ public:
   void forward(const Tensor &X, Tensor &Y, const Tensor *context = nullptr,
                const Tensor *mask = nullptr);
 
-  void backward(const Tensor &dY, const Tensor &X, const Tensor &Source,
-                Tensor &dX, Tensor &dSource, bool accumulate = false);
+  void backward(const Tensor &dY, const Tensor &X, const Tensor *Source,
+                Tensor &dX, Tensor *dSource, bool accumulate = false);
 
   // std::vector<Tensor *> parameters() override;
   // std::vector<Tensor *> gradients() override;

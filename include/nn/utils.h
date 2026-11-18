@@ -16,6 +16,7 @@ void ensure(std::optional<Tensor> &buffer,
             const std::vector<std::size_t> &shape);
 
 template <typename T> T iterative_product_vector(std::vector<T> &data);
+
 } // namespace nn::utils
 
 #endif // !UTILS_NN_H

@@ -35,7 +35,7 @@ private:
   LayerNorm ln_1, ln_2;
 
   std::optional<Tensor> mha_output_, norm_1_output_, norm_2_output_,
-      d_mha_output_, dX_, dSource_, d_norm_1_output_, d_norm_2_output_;
+      d_mha_output_, dX_, d_norm_1_output_, d_norm_2_output_;
 
   std::vector<optional<Tensor> *> buffers_() override;
   std::vector<optional<Tensor> *> buffer_gradients_() override;

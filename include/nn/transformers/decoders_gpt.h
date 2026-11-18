@@ -30,10 +30,7 @@ private:
   MultiheadAttention mha_self;
 
   optional<Tensor> mha_self_output_, norm_1_output_, norm_2_output_;
-  // FIXME: need to remove the norm 1 input X and source after solving for TN
-  // 005
-  optional<Tensor> d_mha_self_output_, d_norm_1_X_, d_norm_1_Source_,
-      d_norm_2_output_;
+  optional<Tensor> d_mha_self_output_, d_norm_1_X_, d_norm_2_output_;
 
   void ensure_buffers(const Tensor &X);
   void ensure_buffer_gradients(const Tensor &X);

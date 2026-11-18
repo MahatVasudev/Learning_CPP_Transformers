@@ -35,8 +35,8 @@ private:
   const Tensor *source_ = nullptr;
   std::optional<Tensor> mha_self_output_, norm_1_output_, norm_2_output_,
       norm_3_output_, mha_cross_output_;
-  std::optional<Tensor> d_mha_self_output_, d_norm_query_, d_norm_source_,
-      d_norm_2_output_, d_norm_3_output_, dX_, dSource_, d_mha_cross_output_;
+  std::optional<Tensor> d_mha_self_output_, d_norm_query_, d_norm_2_output_,
+      d_norm_3_output_, dX_, dSource_, d_mha_cross_output_;
 
   std::vector<optional<Tensor> *> buffers_() override;
   std::vector<optional<Tensor> *> buffer_gradients_() override;
