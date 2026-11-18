@@ -1,4 +1,5 @@
 #include "core/random.h"
+#include "core/utils.h"
 #include "ops/matmul.h"
 #include <cmath>
 #include <core/errors.h>
@@ -226,23 +227,50 @@ void MultiheadAttention::forward(const Tensor &X, Tensor &Y,
   output_.forward(*concatenated_, Y);
 }
 
-// FIXME: TN 005
 void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
-                                  const Tensor &Source, Tensor &dX,
-                                  Tensor &dSource, bool accumulate) {
+                                  const Tensor *Source, Tensor &dX,
+                                  Tensor *dSource, bool accumulate) {
   require_training("MultiheadAttention::backward");
+  const Tensor *source = (Source == nullptr) ? &X : Source;
+  if ((dSource == nullptr) != (Source == nullptr))
+    throw error::StateError("MultiheadAttention::backward: when providing "
+                            "Source or dSource, you need to provide both");
+
+  core::utils::require_nonoverlap(dY, dX, "MultiheadAttention", "dY", "dX");
+  core::utils::require_nonoverlap(X, dX, "MultiheadAttention", "X", "dX");
+  core::utils::require_nonoverlap(*source, dX, "MultiheadAttention", "Source",
+                                  "dX");
+
+  if (dSource != nullptr) {
+    core::utils::require_nonoverlap(dY, *dSource, "MultiheadAttention", "dY",
+                                    "dSource");
+    core::utils::require_nonoverlap(X, *dSource, "MultiheadAttention", "X",
+                                    "dSource");
+    core::utils::require_nonoverlap(*source, *dSource, "MultiheadAttention",
+                                    "Source", "dSource");
+
+    core::utils::require_shape_match(Source->shape(), dSource->shape(),
+                                     "MultiheadAttention", "Source", "dSource");
+  }
+
+  core::utils::require_shape_match(X.shape(), dX.shape(), "MultiheadAttention",
+                                   "X", "dX");
+
+  core::utils::require_shape_match(X.shape(), dY.shape(), "MultiheadAttention",
+                                   "X", "dY");
+
   const std::vector<std::size_t> &dy_shape = dY.shape();
-  ensure_gradients_(X, Source);
+  ensure_gradients_(X, *source);
   const std::size_t B = X.shape()[0];
   const std::size_t Sq = X.shape()[1];
-  const std::size_t Skv = Source.shape()[1];
+  const std::size_t Skv = source->shape()[1];
   Tensor d_concatenated_(dy_shape);
   output_.backward(*concatenated_, dY, d_concatenated_, false);
   Tensor d_heads =
       d_concatenated_.view({dy_shape[0], dy_shape[1], heads_, head_dims_})
           .permute({0, 2, 1, 3});
 
-  ops::matmul(*probabilities_, d_heads, *dV_, true, false, accumulate);
+  ops::matmul(*probabilities_, d_heads, *dV_, true, false, false);
   Tensor V = V_proj_.value()
                  .view({B, Skv, this->heads_, this->head_dims_})
                  .permute({0, 2, 1, 3});
@@ -260,8 +288,8 @@ void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
 
   d_scores_->divide(std::sqrt(static_cast<float>(head_dims_)));
 
-  ops::matmul(*d_scores_, K, *dQ_, false, false, accumulate);
-  ops::matmul(*d_scores_, Q, *dK_, true, false, accumulate);
+  ops::matmul(*d_scores_, K, *dQ_, false, false, false);
+  ops::matmul(*d_scores_, Q, *dK_, true, false, false);
 
   Tensor dQ_o = dQ_->permute({0, 2, 1, 3}).contiguous();
   Tensor dK_o = dK_->permute({0, 2, 1, 3}).contiguous();
@@ -270,10 +298,11 @@ void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
   dQ_o.reshape({B, Sq, in_dims_});
   dK_o.reshape({B, Skv, in_dims_});
   dV_o.reshape({B, Skv, in_dims_});
-
+  Tensor *dsource = (dSource == nullptr) ? &dX : dSource;
   query_.backward(X, dQ_o, dX, accumulate);
-  key_.backward(Source, dK_o, dSource, accumulate);
-  value_.backward(Source, dV_o, dSource, true);
+  key_.backward(*source, dK_o, *dsource,
+                (dSource == nullptr) ? true : accumulate);
+  value_.backward(*source, dV_o, *dsource, true);
 }
 
 Tensor MultiheadAttention::create_causal_mask(std::size_t query_length,

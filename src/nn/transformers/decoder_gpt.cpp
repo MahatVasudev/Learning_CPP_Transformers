@@ -22,8 +22,7 @@ vector<optional<Tensor> *> SelfAttentionDecoder::buffers_() {
 }
 
 vector<optional<Tensor> *> SelfAttentionDecoder::buffer_gradients_() {
-  return {&d_norm_1_Source_, &d_norm_1_X_, &d_mha_self_output_,
-          &d_norm_2_output_};
+  return {&d_norm_1_X_, &d_mha_self_output_, &d_norm_2_output_};
 }
 
 void SelfAttentionDecoder::ensure_buffers(const Tensor &X) {
@@ -88,9 +87,8 @@ void SelfAttentionDecoder::backward(const Tensor &X, const Tensor &dY,
 
   d_mha_self_output_->add(dY);
 
-  // FIX: need to fix for mha taking source, TN 005
-  mha_self.backward(*d_mha_self_output_, *norm_1_output_, *norm_1_output_,
-                    *d_norm_1_X_, *d_norm_1_Source_, false);
+  mha_self.backward(*d_mha_self_output_, *norm_1_output_, nullptr, *d_norm_1_X_,
+                    nullptr, false);
 
   d_norm_1_X_->add(*d_norm_1_Source_);
 

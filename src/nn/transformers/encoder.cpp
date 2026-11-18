@@ -33,8 +33,12 @@ std::vector<optional<Tensor> *> EncoderUnit::buffers_() {
 }
 
 std::vector<optional<Tensor> *> EncoderUnit::buffer_gradients_() {
-  return {&d_mha_output_, &d_norm_1_output_, &d_norm_2_output_, &dX_,
-          &dSource_};
+  return {
+      &d_mha_output_,
+      &d_norm_1_output_,
+      &d_norm_2_output_,
+      &dX_,
+  };
 }
 
 // A single EncoderUnit forward
@@ -92,9 +96,7 @@ void EncoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
 
   d_mha_output_->add(dY);
 
-  mha_.backward(*d_mha_output_, *norm_1_output_, *norm_1_output_, *dX_,
-                *dSource_, false);
-  dX_->add(*dSource_);
+  mha_.backward(*d_mha_output_, *norm_1_output_, nullptr, *dX_, nullptr, false);
   ln_1.backward(X, *dX_, *d_norm_1_output_, false);
 
   if (accumulate) {

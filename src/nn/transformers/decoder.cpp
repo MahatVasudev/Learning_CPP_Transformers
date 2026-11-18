@@ -30,7 +30,6 @@ std::vector<optional<Tensor> *> DecoderUnit::buffers_() {
 std::vector<optional<Tensor> *> DecoderUnit::buffer_gradients_() {
 
   return {&d_norm_query_,
-          &d_norm_source_,
           &d_norm_2_output_,
           &d_norm_3_output_,
           &d_mha_cross_output_,
@@ -115,6 +114,7 @@ void DecoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
                            bool accumulate) {
 
   require_training("DecoderUnit::backward");
+  // BUG: This is incorrect
   if (!source_ || source_->shape() != X.shape()) {
     error::StateError("DecoderUnit::backward: run forward() first");
   }
@@ -127,18 +127,17 @@ void DecoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
 
   d_mha_cross_output_->add(dY);
 
-  mha_cross.backward(*d_mha_cross_output_, *norm_2_output_, *source_,
-                     *d_norm_2_output_, *dSource_, false);
+  mha_cross.backward(*d_mha_cross_output_, *norm_2_output_, *&source_,
+                     *d_norm_2_output_, &*dSource_, false);
 
   ln_2.backward(*mha_self_output_, *d_norm_2_output_, *d_mha_self_output_,
                 false);
 
   d_norm_2_output_->add(*d_mha_cross_output_);
 
-  mha_self.backward(*d_mha_self_output_, *norm_1_output_, *norm_1_output_,
-                    *d_norm_query_, *d_norm_source_, false);
+  mha_self.backward(*d_mha_self_output_, *norm_1_output_, nullptr,
+                    *d_norm_query_, nullptr, false);
 
-  d_norm_query_->add(*d_norm_source_);
   ln_1.backward(X, *d_norm_query_,
                 *dX_); // FIXED: took dY as d_norm_source_ by mistake
 
