@@ -59,6 +59,12 @@ public:
   explicit StateError(const std::string &message);
 };
 
+// AssertionError
+class AssertionError : public std::runtime_error {
+public:
+  explicit AssertionError(const std::string &message);
+};
+
 // OverlapError
 class OverlapError : public std::logic_error {
 

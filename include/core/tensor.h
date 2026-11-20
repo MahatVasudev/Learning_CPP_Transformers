@@ -44,6 +44,7 @@ public:
   Tensor transpose(int dim0, int dim1) const;
   Tensor broadcast_to(std::vector<std::size_t> shape) const;
   Tensor broadcast_like(const Tensor &t) const;
+  Tensor narrow(size_t axis, size_t start, size_t length) const;
 
   // Indexing
   template <typename... Idx> float &operator()(Idx... idx) {
@@ -92,6 +93,8 @@ public:
   Tensor norm(const float &p, int &axis, bool keepdims = false) const;
   float norm(const float &p) const;
 
+  // BUG: TN 006
+
   // For each method for non reduction methods
   //
   // Callback signature:
@@ -126,6 +129,8 @@ public:
       callback(input_offset, output_offset, linear);
     }
   };
+
+  // BUG: TN 006
 
   // For each method for reduction methods
   //
@@ -168,6 +173,8 @@ public:
       callback(input_offset, output_offset, reduced_coord);
     }
   }
+
+  // BUG: TN 006
 
   template <typename Callback>
   static void for_each_reduction(const std::vector<std::size_t> &input_shape,
@@ -247,7 +254,7 @@ private:
     static_assert(sizeof...(Idx) > 0, "need at least one index");
     assert(sizeof...(Idx) == shape_.size() && "index count must equal rank");
     const std::size_t indices[] = {static_cast<std::size_t>(idx)...};
-    std::size_t off = 0;
+    std::size_t off = storage_offset_;
     for (std::size_t d = 0; d < shape_.size(); ++d) {
       // TODO: TN 003
       assert(indices[d] < shape_[d] && "index out of bounds");
@@ -259,6 +266,12 @@ private:
   // Private constructor, can break if added without check
   Tensor(std::shared_ptr<float[]> data, std::vector<std::size_t> shape,
          std::vector<std::size_t> strides, std::size_t numel) noexcept;
+
+  // Private constructor, can break if added without check, (with custom storage
+  // offset)
+  Tensor(std::shared_ptr<float[]> data, std::vector<std::size_t> shape,
+         std::vector<std::size_t> strides, std::size_t numel,
+         size_t storage_offset) noexcept;
 
   static std::vector<std::size_t>
   compute_strides_(std::vector<std::size_t> &shape, std::size_t &numel);
@@ -281,6 +294,7 @@ private:
   std::vector<std::size_t> strides_;
   std::size_t numel_;
   std::shared_ptr<float[]> data_;
+  std::size_t storage_offset_ = 0;
 }; // class Tensor
 
 } // namespace core

@@ -13,6 +13,8 @@ void require_contiguous(const Tensor &t, const std::string &operation = "",
                         const std::string &variable_name = "");
 Tensor reshape(Tensor &tensor, std::vector<std::size_t> &shape);
 
+void require(bool value, const std::string &message);
+
 void require_nonoverlap(const Tensor &t1, const Tensor &t2,
                         const std::string &operation,
                         const std::string &variable_name1 = "",
