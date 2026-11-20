@@ -1,6 +1,7 @@
 #include "core/random.h"
 #include "core/utils.h"
 #include "ops/matmul.h"
+#include <algorithm>
 #include <cmath>
 #include <core/errors.h>
 #include <cstddef>
@@ -199,6 +200,12 @@ void MultiheadAttention::forward(const Tensor &X, Tensor &Y,
 
   Tensor K = K_proj_.value().view({Bi, Si, this->heads_, this->head_dims_});
   Tensor V = V_proj_.value().view({Bi, Si, this->heads_, this->head_dims_});
+
+  if (cache_mode_ && !kvCache) {
+    KVCache cache = {K, V, 0, 0};
+
+    kvCache.emplace(cache);
+  }
   Tensor Q = Q_proj_.value().view({B, S, this->heads_, this->head_dims_});
 
   Q = Q.permute({0, 2, 1, 3});
@@ -332,6 +339,87 @@ Tensor MultiheadAttention::create_causal_mask(std::size_t query_length,
   }
 
   return causal;
+}
+
+void MultiheadAttention::set_cache_mode(bool state) {
+  cache_mode_ = state;
+
+  if (!state) {
+    kvCache.reset();
+  }
+}
+
+void KVCache::append(const Tensor &new_keys, const Tensor &new_values) {
+  const vector<size_t> &nk_shape = new_keys.shape();
+  const vector<size_t> &nv_shape = new_values.shape();
+  const vector<size_t> &ck_shape = keys.shape();
+  const vector<size_t> &cv_shape = values.shape();
+
+  if (nk_shape.size() != 4 || nv_shape.size() != 4 || ck_shape.size() != 4 ||
+      cv_shape.size() != 4) {
+    throw error::ShapeError(
+        "KVCache::append",
+        "expected 4 dimensions in keys and values, Keys shape", ck_shape,
+        error::make_message(
+            "Values shape: ", error::format_shape(cv_shape),
+            "\nRecieved Keys shape: ", error::format_shape(nk_shape),
+            " Recieved Value Shape: ", error::format_shape(nv_shape)));
+  }
+
+  if (nk_shape[0] != ck_shape[0] || nk_shape[1] != ck_shape[1] ||
+      nk_shape[3] != ck_shape[3]) {
+    throw error::ShapeError(
+        "KVCache::append",
+        "Recieved Keys Dimensions donot match, recieved keys", nk_shape,
+        error::make_message(
+            "current cache keys shape: ", error::format_shape(cv_shape),
+            " dimensions to match (B, H, _, K)"));
+  }
+
+  if (nv_shape[0] != cv_shape[0] || nv_shape[1] != cv_shape[1] ||
+      nv_shape[3] != cv_shape[3]) {
+    throw error::ShapeError(
+        "KVCache::append",
+        "Recieved Values Dimensions donot match, recieved values", nk_shape,
+        error::make_message(
+            "current cache values shape: ", error::format_shape(cv_shape),
+            " dimensions to match (B, H, _, V)"));
+  }
+
+  if (nv_shape[2] != nk_shape[2]) {
+    throw error::ShapeError(
+        "KVCache::append",
+        "Sequence of the recieved Values and Keys donot match", nk_shape,
+        error::make_message("Values shape: ", error::format_shape(cv_shape)));
+  }
+
+  size_t cpty = capacity();
+
+  core::utils::require(length <= cpty && nk_shape[2] <= cpty - length,
+                       "KVCache::append: Keys Values Cache Capacity Exceeded");
+  const size_t B = nk_shape[0];
+  const size_t H = nk_shape[1];
+  const size_t DK = nk_shape[3];
+  const size_t DV = nv_shape[3];
+  const size_t new_size = nk_shape[2];
+
+  for (size_t b = 0; b < B; b++) {
+    for (size_t h = 0; h < H; h++) {
+      for (size_t s = 0; s < new_size; s++) {
+
+        size_t dst = ((b * H + h) * cpty + length + s);
+        for (size_t dk = 0; dk < DK; dk++) {
+          keys.data()[dst * DK + dk] = new_keys(b, h, s, dk);
+        }
+
+        for (size_t dv = 0; dv < DV; dv++) {
+          values.data()[dst * DV + dv] = new_values(b, h, s, dv);
+        }
+      }
+    }
+  }
+
+  this->length += new_size;
 }
 
 } // namespace nn::transformers
