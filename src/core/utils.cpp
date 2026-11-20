@@ -14,6 +14,12 @@ void require_contiguous(const Tensor &t, const std::string &operation,
   }
 }
 
+void require(bool value, const std::string &message) {
+  if (!value) {
+    throw error::AssertionError(message);
+  }
+}
+
 void require_nonoverlap(const Tensor &t1, const Tensor &t2,
                         const std::string &operation,
                         const std::string &variable_name1,

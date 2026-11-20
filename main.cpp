@@ -18,6 +18,8 @@
 // TODO: 003. Remove Assert
 // TODO: 004. Add the necessary checks
 // TODO: 005. Add KV cache for multiheadattention
+// BUG: 006. Make changes in calculating offset w.r.t storage_offset_ in Tensor
+// class
 
 namespace {
 

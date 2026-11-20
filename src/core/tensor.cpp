@@ -1,5 +1,6 @@
 #include "core/tensor.h"
 #include "core/errors.h"
+#include "core/utils.h"
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -75,6 +76,11 @@ Tensor::Tensor(std::shared_ptr<float[]> data, std::vector<std::size_t> shape,
     : shape_(std::move(shape)), strides_(std::move(strides)), numel_(numel),
       data_(std::move(data)) {}
 
+Tensor::Tensor(std::shared_ptr<float[]> data, std::vector<std::size_t> shape,
+               std::vector<std::size_t> strides, std::size_t numel,
+               std::size_t storage_offset) noexcept
+    : shape_(std::move(shape)), strides_(std::move(strides)), numel_(numel),
+      data_(std::move(data)), storage_offset_(storage_offset) {}
 // NOTE: CONSTRUCTOR END ----------------------
 
 bool Tensor::is_contiguous() const {
@@ -366,6 +372,26 @@ Tensor Tensor::broadcast_to(std::vector<std::size_t> shape) const {
 
 Tensor Tensor::broadcast_like(const Tensor &t) const {
   return broadcast_to(t.shape());
+}
+
+Tensor Tensor::narrow(size_t axis, size_t start, size_t length) const {
+  utils::require(axis < rank(), "narrow: axis is out of range...");
+
+  utils::require(start <= shape_[axis] && length <= shape_[axis] - start,
+                 "narrow: range out of bounds");
+
+  vector<size_t> shape = shape_;
+
+  shape[axis] = length;
+
+  size_t new_numel = 1;
+
+  for (size_t dim : shape) {
+    new_numel *= dim;
+  }
+
+  return Tensor(data_, shape, strides_, new_numel,
+                storage_offset_ + start * strides_[axis]);
 }
 
 // NOTE: SHAPE MANIPULATION END -----------------------------------
