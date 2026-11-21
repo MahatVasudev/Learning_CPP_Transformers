@@ -181,36 +181,49 @@ void MultiheadAttention::forward(const Tensor &X, Tensor &Y,
   const std::size_t S = x_shape[1];
   const std::size_t Bi = source_shape[0];
   const std::size_t Si = source_shape[1];
+  std::size_t query_offset = 0;
 
   const Tensor *causal_mask = nullptr;
+
+  query_.forward(X, *Q_proj_);
+  Tensor Q = Q_proj_->view({B, S, this->heads_, this->head_dims_})
+                 .permute({0, 2, 1, 3});
+
+  Tensor K(K_proj_->shape());
+  Tensor V(V_proj_->shape());
+  if (!cache_mode_) {
+    key_.forward(source, *K_proj_);
+    value_.forward(source, *V_proj_);
+    K = K_proj_->view({Bi, Si, this->heads_, this->head_dims_})
+            .permute({0, 2, 1, 3});
+    V = V_proj_->view({Bi, Si, this->heads_, this->head_dims_})
+            .permute({0, 2, 1, 3});
+
+  } else {
+
+    key_.forward(source, *K_proj_);
+    value_.forward(source, *V_proj_);
+    Tensor new_K = K_proj_->view({Bi, Si, this->heads_, this->head_dims_})
+                       .permute({0, 2, 1, 3});
+    Tensor new_V = V_proj_->view({Bi, Si, this->heads_, this->head_dims_})
+                       .permute({0, 2, 1, 3});
+
+    query_offset = kvCache->current_length();
+
+    kvCache->append(new_K, new_V);
+    K = kvCache->active_keys();
+    V = kvCache->active_values();
+  }
 
   if (is_causal_) {
     if (!causal_mask_ || causal_mask_->shape()[2] != S ||
         causal_mask_->shape()[3] != Si) {
 
-      causal_mask_ = create_causal_mask(S, Si);
+      causal_mask_ = create_causal_mask(S, Si, query_offset);
     }
 
     causal_mask = &*causal_mask_;
   }
-
-  query_.forward(X, *Q_proj_);
-  key_.forward(source, *K_proj_);
-  value_.forward(source, *V_proj_);
-
-  Tensor K = K_proj_.value().view({Bi, Si, this->heads_, this->head_dims_});
-  Tensor V = V_proj_.value().view({Bi, Si, this->heads_, this->head_dims_});
-
-  if (cache_mode_ && !kvCache) {
-    KVCache cache = {K, V, 0, 0};
-
-    kvCache.emplace(cache);
-  }
-  Tensor Q = Q_proj_.value().view({B, S, this->heads_, this->head_dims_});
-
-  Q = Q.permute({0, 2, 1, 3});
-  K = K.permute({0, 2, 1, 3});
-  V = V.permute({0, 2, 1, 3});
 
   ops::matmul(Q, K, *scores_, false, true, false);
   scores_->divide(std::sqrt(static_cast<float>(K.shape().back())));
@@ -341,14 +354,6 @@ Tensor MultiheadAttention::create_causal_mask(std::size_t query_length,
   return causal;
 }
 
-void MultiheadAttention::set_cache_mode(bool state) {
-  cache_mode_ = state;
-
-  if (!state) {
-    kvCache.reset();
-  }
-}
-
 void KVCache::append(const Tensor &new_keys, const Tensor &new_values) {
   const vector<size_t> &nk_shape = new_keys.shape();
   const vector<size_t> &nv_shape = new_values.shape();
@@ -395,13 +400,18 @@ void KVCache::append(const Tensor &new_keys, const Tensor &new_values) {
 
   size_t cpty = capacity();
 
-  core::utils::require(length <= cpty && nk_shape[2] <= cpty - length,
-                       "KVCache::append: Keys Values Cache Capacity Exceeded");
   const size_t B = nk_shape[0];
   const size_t H = nk_shape[1];
   const size_t DK = nk_shape[3];
   const size_t DV = nv_shape[3];
   const size_t new_size = nk_shape[2];
+  if (length > cpty || new_size > cpty - length) {
+    if (is_static)
+      throw error::AssertionError(
+          "KVCache::append: Keys Values Cache Capacity Exceeded");
+    else
+      reserve(std::max(2 * capacity(), length + new_size));
+  }
 
   for (size_t b = 0; b < B; b++) {
     for (size_t h = 0; h < H; h++) {
@@ -420,6 +430,36 @@ void KVCache::append(const Tensor &new_keys, const Tensor &new_values) {
   }
 
   this->length += new_size;
+}
+
+void KVCache::reserve(size_t new_capacity) {
+  if (new_capacity <= capacity()) {
+    return;
+  }
+  vector<size_t> nsk = keys.shape();
+  nsk[2] = new_capacity;
+  vector<size_t> nsv = values.shape();
+  nsv[2] = new_capacity;
+
+  Tensor new_keys(nsk);
+  Tensor new_values(nsv);
+
+  for (size_t b = 0; b < nsk[0]; b++) {
+
+    for (size_t h = 0; h < nsk[1]; h++) {
+      for (size_t s = 0; s < length; s++) {
+
+        for (size_t k = 0; k < nsk[3]; k++)
+          new_keys(b, h, s, k) = keys(b, h, s, k);
+
+        for (size_t v = 0; v < nsv[3]; v++)
+          new_values(b, h, s, v) = values(b, h, s, v);
+      }
+    }
+  }
+
+  keys = std::move(new_keys);
+  values = std::move(new_values);
 }
 
 } // namespace nn::transformers
