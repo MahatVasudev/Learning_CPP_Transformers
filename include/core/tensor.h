@@ -17,6 +17,8 @@ namespace core {
 class Tensor {
 public:
   explicit Tensor(std::vector<std::size_t> shape);
+  Tensor()
+      : shape_(), strides_(), numel_(0), data_(nullptr), storage_offset_(0) {};
 
   // NOTE: rule of 5
   ~Tensor();                                  // Destructor
@@ -247,6 +249,9 @@ public:
   static std::vector<std::size_t>
   broadcast_shape(const std::vector<std::size_t> &shape_a,
                   const std::vector<std::size_t> &shape_b);
+
+  bool is_empty() { return numel_ == 0; }
+  bool is_initialized() { return data_ != nullptr; }
 
 private:
   template <typename... Idx> std::size_t offset(Idx... idx) const {
