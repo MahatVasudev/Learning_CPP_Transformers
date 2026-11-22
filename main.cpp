@@ -20,6 +20,8 @@
 // TODO: 005. Add KV cache for multiheadattention
 // BUG: 006. Make changes in calculating offset w.r.t storage_offset_ in Tensor
 // class
+// BUG: 007. Fix whatever mess changes in initialization made for
+// MultiheadAttention
 
 namespace {
 
