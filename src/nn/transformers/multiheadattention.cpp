@@ -21,10 +21,11 @@ namespace error = core::error;
 namespace nn::transformers {
 
 MultiheadAttention::MultiheadAttention(std::size_t in_dims, std::size_t heads,
-                                       bool is_causal,
+                                       bool is_causal, size_t max_length,
                                        core::random::Generator *generator)
     : in_dims_(in_dims), heads_(heads), head_dims_(heads ? in_dims / heads : 0),
-      is_causal_(is_causal), query_(in_dims, in_dims, false, generator),
+      max_length_(max_length), is_causal_(is_causal),
+      query_(in_dims, in_dims, false, generator),
       key_(in_dims, in_dims, false, generator),
       value_(in_dims, in_dims, false, generator),
       output_(in_dims, in_dims, true, generator) {
@@ -101,16 +102,24 @@ void MultiheadAttention::ensure_buffers_(const Tensor &X,
   const std::vector<std::size_t> &x_shape = X.shape();
   const std::vector<std::size_t> &source_shape = source.shape();
 
-  const std::vector<std::size_t> score_shape = {x_shape[0], heads_, x_shape[1],
-                                                source_shape[1]};
-
   ensure(Q_proj_, x_shape);
   ensure(K_proj_, source_shape);
   ensure(V_proj_, source_shape);
+
+  ensure(concatenated_, x_shape);
+  if (cache_mode_ && !kvCache) {
+    kvCache.emplace(x_shape[0], heads_, max_length_, in_dims_, in_dims_,
+                    has_hard_limit_);
+  }
+}
+
+void MultiheadAttention::ensure_attention_buffers_(size_t B, size_t S,
+                                                   size_t key_length) {
+
+  const std::vector<std::size_t> score_shape = {B, heads_, S, key_length};
   ensure(scores_, score_shape);
   ensure(probabilities_, score_shape);
-  ensure(head_outputs_, x_shape);
-  ensure(concatenated_, x_shape);
+  ensure(head_outputs_, {B, heads_, S, head_dims_});
 }
 
 void MultiheadAttention::ensure_gradients_(const Tensor &X,
@@ -161,8 +170,11 @@ void MultiheadAttention::mhattn_forward_check(const Tensor &X, const Tensor &Y,
 
 void MultiheadAttention::forward(const Tensor &X, Tensor &Y,
                                  const Tensor *context, const Tensor *mask) {
-
   mhattn_forward_check(X, Y, context);
+  core::utils::require(
+      cache_static_ && context != nullptr,
+      "need to provide context, when you want cross attention; try "
+      "enable_kvcache(/* is_static = */ false) for self attention");
   const Tensor &source = context ? *context : X;
   ensure_buffers_(X, source);
 
@@ -189,8 +201,8 @@ void MultiheadAttention::forward(const Tensor &X, Tensor &Y,
   Tensor Q = Q_proj_->view({B, S, this->heads_, this->head_dims_})
                  .permute({0, 2, 1, 3});
 
-  Tensor K(K_proj_->shape());
-  Tensor V(V_proj_->shape());
+  Tensor K;
+  Tensor V;
   if (!cache_mode_) {
     key_.forward(source, *K_proj_);
     value_.forward(source, *V_proj_);
@@ -199,27 +211,28 @@ void MultiheadAttention::forward(const Tensor &X, Tensor &Y,
     V = V_proj_->view({Bi, Si, this->heads_, this->head_dims_})
             .permute({0, 2, 1, 3});
 
+    last_cache_run_ = false;
   } else {
+    require_eval("MultiheadAttention::forward",
+                 "cache-mode is only possible during inference...");
+    if (!cache_static_) {
 
-    key_.forward(source, *K_proj_);
-    value_.forward(source, *V_proj_);
-    Tensor new_K = K_proj_->view({Bi, Si, this->heads_, this->head_dims_})
-                       .permute({0, 2, 1, 3});
-    Tensor new_V = V_proj_->view({Bi, Si, this->heads_, this->head_dims_})
-                       .permute({0, 2, 1, 3});
+      query_offset = kvCache->current_length();
+    }
 
-    query_offset = kvCache->current_length();
-
-    kvCache->append(new_K, new_V);
-    K = kvCache->active_keys();
-    V = kvCache->active_values();
+    cache_loading(source, K, V);
+    last_cache_run_ = true;
   }
+
+  const std::size_t key_length = K.shape()[2];
+
+  ensure_attention_buffers_(B, S, key_length);
 
   if (is_causal_) {
     if (!causal_mask_ || causal_mask_->shape()[2] != S ||
-        causal_mask_->shape()[3] != Si) {
+        causal_mask_->shape()[3] != key_length) {
 
-      causal_mask_ = create_causal_mask(S, Si, query_offset);
+      causal_mask_ = create_causal_mask(S, key_length, query_offset);
     }
 
     causal_mask = &*causal_mask_;
@@ -251,6 +264,11 @@ void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
                                   const Tensor *Source, Tensor &dX,
                                   Tensor *dSource, bool accumulate) {
   require_training("MultiheadAttention::backward");
+  if (last_cache_run_) {
+    require_eval("MultiheadAttention::bacward",
+                 "cannot run backward with cache_mode on in training mode, try "
+                 "eval() or disable the cache_mode");
+  }
   const Tensor *source = (Source == nullptr) ? &X : Source;
   if ((dSource == nullptr) != (Source == nullptr))
     throw error::StateError("MultiheadAttention::backward: when providing "
@@ -323,6 +341,45 @@ void MultiheadAttention::backward(const Tensor &dY, const Tensor &X,
   key_.backward(*source, dK_o, *dsource,
                 (dSource == nullptr) ? true : accumulate);
   value_.backward(*source, dV_o, *dsource, true);
+}
+
+void MultiheadAttention::cache_loading(const Tensor &source, Tensor &K,
+                                       Tensor &V) {
+  // UNSAFE
+  if (!cache_mode_) {
+    return;
+  }
+
+  size_t Bi = source.shape()[0];
+  size_t Si = source.shape()[1];
+  if (cache_static_) {
+    if (!cache_initialized_) {
+
+      key_.forward(source, *K_proj_);
+      value_.forward(source, *V_proj_);
+      Tensor new_K = K_proj_->view({Bi, Si, this->heads_, this->head_dims_})
+                         .permute({0, 2, 1, 3});
+      Tensor new_V = V_proj_->view({Bi, Si, this->heads_, this->head_dims_})
+                         .permute({0, 2, 1, 3});
+      kvCache->append(new_K, new_V);
+
+      cache_initialized_ = true;
+    }
+
+  } else {
+
+    key_.forward(source, *K_proj_);
+    value_.forward(source, *V_proj_);
+    Tensor new_K = K_proj_->view({Bi, Si, this->heads_, this->head_dims_})
+                       .permute({0, 2, 1, 3});
+    Tensor new_V = V_proj_->view({Bi, Si, this->heads_, this->head_dims_})
+                       .permute({0, 2, 1, 3});
+
+    kvCache->append(new_K, new_V);
+  }
+
+  K = kvCache->active_keys();
+  V = kvCache->active_values();
 }
 
 Tensor MultiheadAttention::create_causal_mask(std::size_t query_length,
@@ -406,7 +463,7 @@ void KVCache::append(const Tensor &new_keys, const Tensor &new_values) {
   const size_t DV = nv_shape[3];
   const size_t new_size = nk_shape[2];
   if (length > cpty || new_size > cpty - length) {
-    if (is_static)
+    if (has_hard_limit_)
       throw error::AssertionError(
           "KVCache::append: Keys Values Cache Capacity Exceeded");
     else

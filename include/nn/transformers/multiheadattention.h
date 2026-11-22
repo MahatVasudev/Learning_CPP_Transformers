@@ -19,10 +19,10 @@ struct KVCache {
   Tensor values;
 
   KVCache(size_t batch_size, size_t heads, size_t max_length, size_t key_dim,
-          size_t value_dim, bool is_static = true)
+          size_t value_dim, bool has_hard_limit = true)
       : keys({batch_size, heads, max_length, key_dim}),
         values({batch_size, heads, max_length, value_dim}),
-        is_static(is_static) {};
+        has_hard_limit_(has_hard_limit) {};
 
   size_t capacity() const { return keys.shape()[2]; }
   void append(const Tensor &new_keys, const Tensor &new_values);
@@ -36,14 +36,14 @@ struct KVCache {
 
 private:
   std::size_t length = 0;
-  const bool is_static;
+  const bool has_hard_limit_;
 };
 
 // TODO: TN 005
 class MultiheadAttention final : public Module {
 public:
   MultiheadAttention(std::size_t in_dims, std::size_t heads,
-                     bool is_causal = false,
+                     bool is_causal = false, size_t max_length = 10000,
                      core::random::Generator *generator = nullptr);
 
   void forward(const Tensor &X, Tensor &Y, const Tensor *context = nullptr,
@@ -52,24 +52,31 @@ public:
   void backward(const Tensor &dY, const Tensor &X, const Tensor *Source,
                 Tensor &dX, Tensor *dSource, bool accumulate = false);
 
-  void enable_cache(bool is_static = true) {
+  void enable_kvcache(bool is_static = true, bool has_hard_limit = false) {
     cache_mode_ = true;
     cache_static_ = is_static;
+    has_hard_limit_ = has_hard_limit;
   };
 
-  void reset_cache();
+  void disable_kvcache() { cache_mode_ = false; }
+
+  void reset_kvcache() { kvCache->reset(); }
+
   std::vector<Module *> modules() override;
 
 private:
   size_t in_dims_;
   size_t heads_;
   size_t head_dims_;
+  size_t max_length_;
   bool is_causal_;
   nn::Linear query_, key_, value_, output_;
   nn::activations::Softmax sm_;
   bool cache_mode_ = false;
-  bool cache_ = true;
-
+  bool cache_static_ = true;
+  bool cache_initialized_ = false;
+  bool has_hard_limit_ = false;
+  bool last_cache_run_ = false;
   std::optional<KVCache> kvCache;
   std::optional<Tensor> Q_proj_, K_proj_, V_proj_, scores_, probabilities_,
       head_outputs_, concatenated_, d_scores_, causal_mask_, d_probabilities_,
@@ -77,15 +84,23 @@ private:
 
   void ensure_buffers_(const Tensor &X, const Tensor &source);
 
+  void ensure_attention_buffers_(size_t B, size_t S, size_t key_length);
+
   void ensure_gradients_(const Tensor &X, const Tensor &source);
 
   std::vector<optional<Tensor> *> buffers_() override;
 
   std::vector<optional<Tensor> *> buffer_gradients_() override;
 
+  // clear_local_cache method cleans up buffers and buffer gradients, does not
+  // remove kvCache
   void clear_local_cache() override;
 
   void validate_buffers_(const Tensor &X, const Tensor &source);
+
+  // cache loading loads KVCache if cache_mode_ is true, according to the
+  // behaviour set by the user for cache static
+  void cache_loading(const Tensor &source, Tensor &K, Tensor &V);
 
   inline void mhattn_forward_check(const Tensor &X, const Tensor &Y,
                                    const Tensor *context);
