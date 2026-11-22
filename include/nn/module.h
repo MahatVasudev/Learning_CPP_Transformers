@@ -102,6 +102,9 @@ protected:
   // training
   void require_training(std::string method_name,
                         std::string additional_message = "");
+
+  void require_eval(std::string method_name,
+                    std::string additional_message = "");
 };
 
 } // namespace nn
