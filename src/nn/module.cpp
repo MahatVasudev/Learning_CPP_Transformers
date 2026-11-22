@@ -47,6 +47,15 @@ void Module::require_training(std::string method_name,
         additional_message);
 }
 
+void Module::require_eval(std::string method_name,
+                          std::string additional_message) {
+  if (training_)
+    throw error::StateError(
+        method_name +
+        ": cannot run this method on train(), run eval() first\n" +
+        additional_message);
+}
+
 void Module::clear_cache() {
   this->clear_local_cache();
   for (Module *child : modules()) {
