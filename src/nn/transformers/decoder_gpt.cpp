@@ -7,11 +7,12 @@ namespace error = core::error;
 namespace nn::transformers {
 
 SelfAttentionDecoder::SelfAttentionDecoder(size_t d_model, size_t d_ff,
-                                           size_t heads, bool causal_mask,
+                                           size_t heads, size_t max_length,
+                                           bool causal_mask,
                                            Generator *generator)
     : d_model_(d_model), d_ff_(d_ff), heads_(heads),
       ff_(d_model, d_ff, generator), ln_1(d_model), ln_2(d_model),
-      mha_self(d_model, heads, causal_mask, generator) {}
+      mha_self(d_model, heads, causal_mask, max_length, generator) {}
 
 vector<Module *> SelfAttentionDecoder::modules() {
   return {&ln_1, &mha_self, &ln_2, &ff_};
@@ -90,8 +91,6 @@ void SelfAttentionDecoder::backward(const Tensor &X, const Tensor &dY,
   mha_self.backward(*d_mha_self_output_, *norm_1_output_, nullptr, *d_norm_1_X_,
                     nullptr, false);
 
-  d_norm_1_X_->add(*d_norm_1_Source_);
-
   ln_1.backward(X, *d_norm_1_X_, dX, accumulate);
 
   dX.add(*d_mha_self_output_);
@@ -100,10 +99,11 @@ void SelfAttentionDecoder::backward(const Tensor &X, const Tensor &dY,
 // Implementing CrossAttentionDecoder
 
 CrossAttentionDecoder::CrossAttentionDecoder(size_t d_model, size_t d_ff,
-                                             size_t heads, Generator *generator)
+                                             size_t heads, size_t max_length,
+                                             Generator *generator)
     : d_model_(d_model), d_ff_(d_ff), heads_(heads),
       ff_(d_model, d_ff, generator), ln_1(d_model), ln_2(d_model),
-      mha_cross(d_model, heads, false, generator) {};
+      mha_cross(d_model, heads, false, max_length, generator) {};
 
 vector<Module *> CrossAttentionDecoder::modules() {
   return {&ln_1, &mha_cross, &ln_2, &ff_};
@@ -178,8 +178,8 @@ void CrossAttentionDecoder::backward(const Tensor &X, const Tensor &dY,
 
   d_mha_cross_output_->add(dY);
 
-  mha_cross.backward(*d_mha_cross_output_, *norm_2_output_, *source,
-                     *d_norm_1_output_, *d_norm_source_output, false);
+  mha_cross.backward(*d_mha_cross_output_, *norm_2_output_, source,
+                     *d_norm_1_output_, &*d_norm_source_output, false);
 
   d_norm_1_output_->add(*d_norm_source_output);
 

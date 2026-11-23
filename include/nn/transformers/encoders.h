@@ -18,6 +18,7 @@ namespace nn::transformers {
 class EncoderUnit final : public Module {
 public:
   EncoderUnit(size_t d_model, size_t d_ff, size_t heads_,
+              size_t max_length = 10000,
               core::random::Generator *gen = nullptr);
 
   void forward(const Tensor &X, Tensor &Y, const Tensor *mask = nullptr);
@@ -48,6 +49,7 @@ class EncoderLayer final : public Module {
 
 public:
   EncoderLayer(size_t num_layers, size_t d_model, size_t d_ff, size_t heads,
+               size_t max_length = 10000,
                core::random::Generator *gen = nullptr);
   std::vector<Tensor> const &activations() const { return activations_; };
 

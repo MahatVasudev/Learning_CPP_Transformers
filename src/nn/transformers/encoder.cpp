@@ -19,10 +19,11 @@ using std::size_t;
 namespace nn::transformers {
 
 EncoderUnit::EncoderUnit(size_t d_model, size_t d_ff, size_t heads,
-                         core::random::Generator *generator)
+                         size_t max_length, core::random::Generator *generator)
     : d_model_(d_model), d_ff_(d_ff), heads_(heads),
-      ff_(d_model_, d_ff_, generator), mha_(d_model_, heads_, false, generator),
-      ln_1(d_model), ln_2(d_model) {}
+      ff_(d_model_, d_ff_, generator),
+      mha_(d_model_, heads_, false, max_length, generator), ln_1(d_model),
+      ln_2(d_model) {}
 
 std::vector<Module *> EncoderUnit::modules() {
   return {&ln_1, &mha_, &ln_2, &ff_};
@@ -125,11 +126,12 @@ void EncoderUnit::ensure_gradients(const Tensor &X) {
 // IMPLEMENTING ENCODER LAYER
 
 EncoderLayer::EncoderLayer(size_t num_layers, size_t d_model, size_t d_ff,
-                           size_t heads, core::random::Generator *generator)
+                           size_t heads, size_t max_length,
+                           core::random::Generator *generator)
     : num_encoders_(num_layers), d_model_(d_model), d_ff_(d_ff), heads_(heads) {
   for (size_t i = 0; i < num_encoders_; i++) {
-    encoders_.insert(encoders_.begin() + i,
-                     EncoderUnit(d_model_, d_ff_, heads_, generator));
+    encoders_.insert(encoders_.begin() + i, EncoderUnit(d_model_, d_ff_, heads_,
+                                                        max_length, generator));
   }
 
   for (size_t i = 0; i < num_encoders_; i++) {

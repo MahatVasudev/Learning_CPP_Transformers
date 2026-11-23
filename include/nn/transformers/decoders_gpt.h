@@ -15,7 +15,8 @@ class SelfAttentionDecoder final : public Module {
 
 public:
   SelfAttentionDecoder(size_t d_model, size_t d_ff, size_t heads,
-                       bool causal_mask = true, Generator *generator = nullptr);
+                       size_t max_length = 10000, bool causal_mask = true,
+                       Generator *generator = nullptr);
 
   vector<Module *> modules() override;
 
@@ -42,7 +43,7 @@ class CrossAttentionDecoder final : public Module {
 
 public:
   CrossAttentionDecoder(size_t d_model, size_t d_ff, size_t heads,
-                        Generator *generator = nullptr);
+                        size_t max_length, Generator *generator = nullptr);
 
   vector<Module *> modules() override;
 

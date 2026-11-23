@@ -13,11 +13,11 @@ namespace core_utils = core::utils;
 namespace nn::transformers {
 
 DecoderUnit::DecoderUnit(size_t d_model, size_t d_ff, size_t heads,
-                         core::random::Generator *generator)
+                         size_t max_length, core::random::Generator *generator)
     : d_model_(d_model), d_ff_(d_ff), heads_(heads),
       ff_(d_model, d_ff, generator), ln_1(d_model), ln_2(d_model),
-      ln_3(d_model), mha_self(d_model, heads, true, generator),
-      mha_cross(d_model, heads, false, generator) {}
+      ln_3(d_model), mha_self(d_model, heads, true, max_length, generator),
+      mha_cross(d_model, heads, false, max_length, generator) {}
 
 std::vector<Module *> DecoderUnit::modules() {
   return {&ln_1, &mha_self, &ln_2, &mha_cross, &ln_3, &ff_};
@@ -151,12 +151,13 @@ void DecoderUnit::backward(const Tensor &X, const Tensor &dY, Tensor &dX,
 }
 
 DecoderLayer::DecoderLayer(size_t num_decoders, size_t d_model, size_t d_ff,
-                           size_t heads, core::random::Generator *generator)
+                           size_t heads, size_t max_length,
+                           core::random::Generator *generator)
     : num_decoders_(num_decoders), d_model_(d_model), d_ff_(d_ff),
       heads_(heads) {
   for (size_t i = 0; i < num_decoders_; i++) {
-    decoders_.insert(decoders_.begin() + i,
-                     DecoderUnit(d_model_, d_ff_, heads_, generator));
+    decoders_.insert(decoders_.begin() + i, DecoderUnit(d_model_, d_ff_, heads_,
+                                                        max_length, generator));
     module_ptrs.insert(module_ptrs.begin() + i, &decoders_[i]);
   }
 }

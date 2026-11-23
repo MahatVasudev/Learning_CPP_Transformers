@@ -17,7 +17,7 @@ namespace nn::transformers {
 class DecoderUnit final : public Module {
 
 public:
-  DecoderUnit(size_t d_model, size_t d_ff, size_t heads,
+  DecoderUnit(size_t d_model, size_t d_ff, size_t heads, size_t max_length,
               core::random::Generator *gen = nullptr);
 
   void forward(const Tensor &X, Tensor &Y, const Tensor *mask = nullptr,
@@ -49,7 +49,7 @@ class DecoderLayer final : public Module {
 
 public:
   DecoderLayer(size_t num_decoders, size_t d_model, size_t d_ff, size_t heads,
-               core::random::Generator *gen = nullptr);
+               size_t max_length, core::random::Generator *gen = nullptr);
 
   std::vector<Tensor> const &activations() const { return activations_; };
 
